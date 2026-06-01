@@ -1016,6 +1016,24 @@ body {
     
     .mobile-brand {
         display: flex; /* Render mobile logo in header */
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 1.1rem;
+        margin-bottom: 0 !important; /* 水平排列，取消下方邊距 */
+    }
+    
+    .header-title-section {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .header-text-group {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end; /* 💡 標題與日期靠右對齊，精緻優雅 */
+        text-align: right;
     }
     
     .app-header {
@@ -1024,26 +1042,30 @@ body {
         left: 0;
         right: 0;
         height: auto;
-        min-height: 92px;
-        background: rgba(5, 7, 11, 0.9);
+        min-height: 60px; /* 💡 大幅縮減 Header 高度，極大化可視螢幕空間 */
+        background: rgba(5, 7, 11, 0.95);
         backdrop-filter: blur(20px);
         border-bottom: 1px solid var(--border-soft);
         padding: 0.75rem 1rem;
-        padding-top: calc(0.75rem + env(safe-area-inset-top)); /* 支援手機頂部瀏海頭/狀態欄安全邊距 */
+        padding-top: calc(0.75rem + env(safe-area-inset-top)); /* 💡 與文字水平排列後，即便包含 safe-area 也極為精巧舒適，絕無截斷問題 */
         margin-bottom: 0 !important;
         z-index: 40;
     }
     
     .app-main {
-        padding: 120px 1rem 5.5rem 1rem; /* 增加上方大邊距，確保完美的視覺呼吸感與防遮擋 */
+        padding: calc(84px + env(safe-area-inset-top)) 1rem 5.5rem 1rem; /* 💡 配合矮 Header (60px + safe) 動態調整，在所有手機上永久精準維持 24px 美觀下緣呼吸間距 */
     }
     
     .header-title {
-        font-size: 1.35rem; /* Make mobile header title tighter */
+        font-size: 1.15rem; /* 💡 手機版標題尺寸微調得更加精簡精緻 */
+        font-weight: 700;
+        margin: 0;
+        line-height: 1.2;
     }
     
     .header-subtitle {
-        font-size: 0.8rem;
+        font-size: 0.7rem; /* 💡 日期字型微調，視覺層次分明 */
+        margin-top: 0.15rem;
     }
     
     .btn-circle-add {

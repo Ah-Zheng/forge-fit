@@ -106,6 +106,7 @@ const initChartInstance = () => {
       plugins: {
         legend: { display: false }, // 隱藏預設圖例，使用下方精心設計的 HTML 圖例
         tooltip: {
+          enabled: true,
           backgroundColor: '#121624',
           titleColor: '#FFF',
           bodyColor: '#E2E8F0',
@@ -132,13 +133,41 @@ const initChartInstance = () => {
 // 同步圖表數據與重繪
 const syncChartData = () => {
   if (chartInstance) {
-    chartInstance.data.datasets[0].data = [
-      muscleVolumes.value.chest,
-      muscleVolumes.value.back,
-      muscleVolumes.value.legs,
-      muscleVolumes.value.shoulders,
-      muscleVolumes.value.arms
-    ]
+    const total = totalVolume.value
+    
+    if (total === 0) {
+      // 💡 今日零訓練量：渲染一個暗白/深藍的 100% 占位圓環，代表尚未有數據，提升 UI 質感
+      chartInstance.data.labels = ['尚未有訓練量']
+      chartInstance.data.datasets[0].data = [1]
+      chartInstance.data.datasets[0].backgroundColor = ['rgba(255, 255, 255, 0.04)']
+      chartInstance.data.datasets[0].borderColor = 'rgba(255, 255, 255, 0.08)'
+      chartInstance.data.datasets[0].borderWidth = 1
+      if (chartInstance.options.plugins && chartInstance.options.plugins.tooltip) {
+        chartInstance.options.plugins.tooltip.enabled = false // 💡 零數據時停用互動提示
+      }
+    } else {
+      // 💡 有訓練量：還原彩色霓虹肌群比例與強烈對比邊框
+      chartInstance.data.labels = ['胸部', '背部', '腿部', '肩膀', '手臂']
+      chartInstance.data.datasets[0].data = [
+        muscleVolumes.value.chest,
+        muscleVolumes.value.back,
+        muscleVolumes.value.legs,
+        muscleVolumes.value.shoulders,
+        muscleVolumes.value.arms
+      ]
+      chartInstance.data.datasets[0].backgroundColor = [
+        'rgba(47, 128, 237, 0.85)',  // 皇家藍 (胸部)
+        'rgba(0, 240, 255, 0.85)',   // 極光青 (背部)
+        'rgba(155, 93, 229, 0.85)',  // 紫羅蘭 (腿部)
+        'rgba(241, 91, 181, 0.85)',  // 霓虹粉 (肩膀)
+        'rgba(254, 228, 64, 0.85)'   // 螢光黃 (手臂)
+      ]
+      chartInstance.data.datasets[0].borderColor = '#080a10'
+      chartInstance.data.datasets[0].borderWidth = 3
+      if (chartInstance.options.plugins && chartInstance.options.plugins.tooltip) {
+        chartInstance.options.plugins.tooltip.enabled = true // 💡 有數據時啟用提示
+      }
+    }
     chartInstance.update()
   }
 }
@@ -264,14 +293,32 @@ const muscleLegendList = computed(() => {
       <!-- 💡 動態 Doughnut Canvas 渲染區 -->
       <div class="chart-container">
         <canvas ref="chartCanvas"></canvas>
+        
+        <!-- 💡 零數據時的中心徽章提示 (空狀態) -->
+        <div v-if="totalVolume === 0" class="chart-empty-center-glow">
+          <span class="empty-title">煉鐵中</span>
+          <span class="empty-subtitle">尚無紀錄</span>
+        </div>
+        
+        <!-- 💡 有數據時的中心訓練量總計 (發光數值) -->
+        <div v-else class="chart-active-center-glow">
+          <span class="active-title">
+            {{ totalVolume >= 1000 ? (totalVolume / 1000).toFixed(1) + 't' : totalVolume + 'kg' }}
+          </span>
+          <span class="active-subtitle">今日總負荷</span>
+        </div>
       </div>
 
-      <!-- 💡 響應式客製化發光圖例清單 -->
+      <!-- 💡 響應式客製化發光圖例清單 (動態透明度引導視覺焦點) -->
       <div class="chart-legend-custom" id="chart-legend">
         <div 
           v-for="m in muscleLegendList" 
           :key="m.key" 
           class="legend-item"
+          :style="{ 
+            opacity: totalVolume === 0 ? 0.5 : (m.vol > 0 ? 1 : 0.25),
+            transition: 'opacity 0.3s ease'
+          }"
         >
           <span 
             class="legend-dot" 
@@ -365,11 +412,64 @@ const muscleLegendList = computed(() => {
   transform: scale(0.9);
 }
 
+/* 📊 圓環正中心絕對定位徽章與發光樣式 */
+.chart-empty-center-glow,
+.chart-active-center-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none; /* 💡 確保觸控事件穿透至 canvas，不干擾 Chart.js tooltip 觸發 */
+  text-align: center;
+  user-select: none;
+}
+
+.empty-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.03);
+}
+
+.empty-subtitle {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+  opacity: 0.7;
+}
+
+.active-title {
+  font-size: 1.35rem;
+  font-weight: 900;
+  color: var(--color-cyan);
+  text-shadow: 0 0 12px rgba(0, 240, 255, 0.45); /* 💡 頂級科技感發光陰影 */
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.active-subtitle {
+  font-size: 0.68rem;
+  color: var(--text-sub);
+  margin-top: 0.15rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  opacity: 0.8;
+}
+
 @media (max-width: 768px) {
   .glass-tooltip-popover {
     left: 0.5rem;
     right: 0.5rem;
     width: auto;
+  }
+  
+  .active-title {
+    font-size: 1.2rem; /* 💡 手機版尺寸微調，避免數值溢出圓環 */
   }
 }
 </style>

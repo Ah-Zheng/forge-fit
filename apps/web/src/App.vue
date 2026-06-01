@@ -182,8 +182,10 @@ const pageTitle = computed(() => {
             <Dumbbell class="text-cyan" :size="20" />
             <span>FORGE<span>FIT</span></span>
           </div>
-          <h1 class="header-title">{{ pageTitle }}</h1>
-          <p class="header-subtitle">{{ currentDateStr }}</p>
+          <div class="header-text-group">
+            <h1 class="header-title">{{ pageTitle }}</h1>
+            <p class="header-subtitle">{{ currentDateStr }}</p>
+          </div>
         </div>
       </header>
 
