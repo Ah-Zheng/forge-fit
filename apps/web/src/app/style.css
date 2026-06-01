@@ -549,7 +549,7 @@ body {
 
 .set-header-row, .set-row {
     display: grid;
-    grid-template-columns: 0.4fr 1.6fr 1.6fr 0.6fr;
+    grid-template-columns: 0.4fr 1.6fr 1.6fr 0.6fr 0.4fr;
     align-items: center;
     gap: 0.5rem;
     padding: 0.4rem 0.25rem;
@@ -1071,7 +1071,7 @@ body {
     
     .set-header-row, .set-row {
         gap: 0.4rem;
-        grid-template-columns: 0.4fr 1.8fr 1.8fr 0.6fr;
+        grid-template-columns: 0.4fr 1.8fr 1.8fr 0.6fr 0.5fr;
     }
     
     .stepper-input {

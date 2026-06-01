@@ -18,6 +18,11 @@ const handleDeleteExercise = (index: number) => {
   }
 }
 
+// 1.5 刪除單一組數的處理邏輯
+const handleDeleteSet = (exercise: ExerciseSession, setIdx: number) => {
+  exercise.sets.splice(setIdx, 1)
+}
+
 // 2. ⚡ 智慧組數記憶 (Smart Set Copier) 邏輯
 // 新增組數時，自動複製上一組的重量與次數，免去手動重複調整的麻煩。
 const handleAddSet = (exercise: ExerciseSession) => {
@@ -126,6 +131,7 @@ const getMuscleNameZh = (muscle: string) => {
             <span class="col-weight" style="text-align: center;">重量 (kg)</span>
             <span class="col-reps" style="text-align: center;">次數 (reps)</span>
             <span class="col-status" style="text-align: center;">完成</span>
+            <span class="col-delete" style="text-align: center;"></span>
           </div>
 
           <!-- 💡 響應式組數迴圈渲染：綁定我們的客製化觸控加減步進器 -->
@@ -159,6 +165,17 @@ const getMuscleNameZh = (muscle: string) => {
               />
               <span class="checkmark"></span>
             </label>
+
+            <!-- 🗑️ 刪除單組按鈕 -->
+            <button 
+              type="button"
+              class="btn-icon delete-set-btn" 
+              @click="handleDeleteSet(ex, setIdx)" 
+              title="刪除此組"
+              style="color: var(--text-muted); display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; cursor: pointer;"
+            >
+              <Trash2 :size="14" />
+            </button>
           </div>
         </div>
 
@@ -180,5 +197,18 @@ const getMuscleNameZh = (muscle: string) => {
 pre {
   white-space: pre-wrap;
   word-wrap: break-word;
+}
+
+/* 🗑️ 刪除組數按鈕的滑鼠懸停微發光紅色效果 */
+.delete-set-btn {
+  transition: var(--transition);
+}
+.delete-set-btn:hover {
+  color: var(--color-danger) !important;
+  filter: drop-shadow(0 0 4px var(--color-danger));
+  transform: scale(1.1);
+}
+.delete-set-btn:active {
+  transform: scale(0.9);
 }
 </style>
