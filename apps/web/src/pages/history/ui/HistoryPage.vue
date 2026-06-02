@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onActivated } from 'vue'
 import { 
     CalendarDays, 
     ChevronLeft, 
@@ -24,7 +24,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-    (e: 'switchTab', tab: string): void
+    (e: 'switchTab', tab: string, date?: string): void
 }>()
 
 // 1. 歷史資料狀態與日曆邏輯
@@ -63,6 +63,11 @@ onMounted(() => {
     loadHistoryData()
 })
 
+// 💡 健檢同步優化：當 KeepAlive 快取組件被重新切換顯示時，瞬間重新讀取最新 LocalStorage 資料，達成 100% 資料即時響應！
+onActivated(() => {
+    loadHistoryData()
+})
+
 // ⚡ 快速將有重訓紀錄的日期轉換為 Set，加速日曆格子的查詢渲染 (O(1) 效能極限)
 const completedDatesSet = computed(() => {
     return new Set(workoutsList.value.map(w => w.date))
@@ -87,7 +92,7 @@ const selectedSession = computed<WorkoutSession | null>(() => {
 const selectedStats = computed(() => {
     const session = selectedSession.value
     if (!session || session.exercises.length === 0) {
-        return { totalVolume: 0, completedSets: 0, duration: 0 }
+        return { totalVolume: 0, completedSets: 0, secondsElapsed: 0 }
     }
     
     let totalVolume = 0
@@ -102,10 +107,15 @@ const selectedStats = computed(() => {
         })
     })
     
+    // 💡 健檢優化：優先使用高精度 secondsElapsed (秒級計時)，防範分鐘四捨五入落差；無則以 duration 分鐘乘以 60 秒作為相容後備
+    const secondsElapsed = typeof session.secondsElapsed === 'number'
+        ? session.secondsElapsed
+        : (session.duration || 0) * 60
+    
     return {
         totalVolume,
         completedSets,
-        duration: session.duration || 0
+        secondsElapsed
     }
 })
 
@@ -228,22 +238,14 @@ const applyAsTodayTemplate = () => {
 // 4. 補記歷史日誌入口
 const recordSelectedDate = () => {
     if (!selectedDateStr.value) return
-    // 將今日 session 暫存或直接在 App.vue 中切換 props.session 的 date。
-    // 在 forge-fit 中，App.vue 傳入的 props.session 指向 currentDateStr 的資料。
-    // 如果想要補記，我們直接把 props.session 的 date 改為選定日期！
-    // 為了安全簡潔，我們可以直接修改 App.vue 中的 todaySession (透過 session 突變)
-    // 但因為 App.value 綁定了 getTodayDateString。
-    // 為了提供最順暢的「補記歷史日誌」功能：
-    // 我們可以允許 props.session 直接突變 date 或是透過 events
-    // 不過由於 todaySession 主要是當日。我們直接在 LoggerPage 支持切換日期，而 HistoryPage
-    // 的補記按鈕可以直接將 App.vue 端的 currentDate 設為選定的歷史日期！
-    // 我們先提示使用者可以切換至 LoggerPage 頂部切換日期即可補記，
-    // 同時將 selectedDateStr 寫入 props.session.date 會觸發 watch date，這也是極其神妙的！
-    // 沒錯！如果我們直接執行：
-    props.session.date = selectedDateStr.value
-    // 這會直接觸發 LoggerPage.vue 的 watch props.session.date，將其重置為該歷史日期，並跳轉！
-    // 這簡直是神級交互，超級方便！
-    emit('switchTab', 'logger')
+    
+    // 💡 智慧分流導航體驗 (Smart Redirect UX)
+    // 如果該歷史日期是一篇空白紀錄，我們智慧引導使用者直接跳轉至「常用百科 (Library)」去挑選動作！
+    // 如果已經有紀錄，則直接跳轉到「重量日誌 (Logger)」方便修改數值！
+    const hasExercises = selectedSession.value && selectedSession.value.exercises.length > 0
+    const targetTab = hasExercises ? 'logger' : 'library'
+    
+    emit('switchTab', targetTab, selectedDateStr.value)
 }
 
 // 輔助函式：肌群繁體中文翻譯
@@ -259,8 +261,7 @@ const getMuscleNameZh = (muscle: string) => {
 }
 
 // 輔助格式化時間為跑錶 hh:mm:ss 或 mm:ss
-const formatStopwatch = (totalMinutes: number) => {
-    const totalSeconds = totalMinutes * 60
+const formatStopwatch = (totalSeconds: number) => {
     const hrs = Math.floor(totalSeconds / 3600)
     const mins = Math.floor((totalSeconds % 3600) / 60)
     const secs = totalSeconds % 60
@@ -275,7 +276,7 @@ const formatStopwatch = (totalMinutes: number) => {
 <template>
     <div class="history-grid" style="animation: fadeInUp 0.4s ease forwards">
         <!-- 📅 左側面板：發光霓虹日曆 -->
-        <div class="glass-card calendar-card">
+        <div class="calendar-wrapper-card">
             <div class="card-header calendar-nav">
                 <button @click="prevMonth" class="btn-icon" title="上個月">
                     <ChevronLeft :size="20" />
@@ -322,7 +323,7 @@ const formatStopwatch = (totalMinutes: number) => {
         </div>
 
         <!-- 📝 右側面板：歷史日誌詳細內容 -->
-        <div class="glass-card detail-card">
+        <div class="detail-wrapper-area">
             <!-- 場景 1. 選定的日子有訓練日誌 -->
             <template v-if="selectedSession && selectedSession.exercises.length > 0">
                 <div class="card-header detail-header">
@@ -360,7 +361,7 @@ const formatStopwatch = (totalMinutes: number) => {
                     <div class="h-stat-item purple-glow">
                         <div class="h-stat-icon"><Clock :size="15" /></div>
                         <div class="h-stat-info">
-                            <span class="h-stat-num">{{ formatStopwatch(selectedStats.duration) }}</span>
+                            <span class="h-stat-num">{{ formatStopwatch(selectedStats.secondsElapsed) }}</span>
                             <span class="h-stat-label">鍛鍊運動時長</span>
                         </div>
                     </div>
@@ -437,8 +438,14 @@ const formatStopwatch = (totalMinutes: number) => {
     width: 100%;
 }
 
-.calendar-card {
+.calendar-wrapper-card {
+    background: var(--bg-card);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--border-soft);
+    border-radius: 16px;
     padding: 1.25rem;
+    box-shadow: var(--shadow-card);
+    transition: var(--transition);
 }
 
 .calendar-nav {
@@ -565,8 +572,10 @@ const formatStopwatch = (totalMinutes: number) => {
 }
 
 /* 📝 歷史明細面板 */
-.detail-card {
-    padding: 1.5rem;
+.detail-wrapper-area {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
     min-height: 400px;
 }
 
@@ -600,17 +609,26 @@ const formatStopwatch = (totalMinutes: number) => {
     display: flex;
     align-items: center;
     gap: 0.65rem;
-    background: rgba(255, 255, 255, 0.01);
-    border: 1px solid rgba(255, 255, 255, 0.03);
-    padding: 0.65rem 0.85rem;
-    border-radius: 10px;
-    transition: all 0.3s ease;
+    background: rgba(18, 22, 36, 0.4);
+    border: 1px solid var(--border-soft);
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .h-stat-item:hover {
-    background: rgba(255, 255, 255, 0.02);
-    border-color: rgba(255, 255, 255, 0.06);
+    transform: translateY(-1px);
 }
+
+.cyan-glow { border-color: rgba(0, 240, 255, 0.12); }
+.cyan-glow:hover { border-color: rgba(0, 240, 255, 0.3); box-shadow: 0 0 10px rgba(0, 240, 255, 0.08); }
+
+.blue-glow { border-color: rgba(47, 128, 237, 0.12); }
+.blue-glow:hover { border-color: rgba(47, 128, 237, 0.3); box-shadow: 0 0 10px rgba(47, 128, 237, 0.08); }
+
+.purple-glow { border-color: rgba(155, 93, 229, 0.12); }
+.purple-glow:hover { border-color: rgba(155, 93, 229, 0.3); box-shadow: 0 0 10px rgba(155, 93, 229, 0.08); }
 
 .h-stat-icon {
     display: flex;
@@ -675,10 +693,17 @@ const formatStopwatch = (totalMinutes: number) => {
 }
 
 .h-exercise-block {
-    background: rgba(255, 255, 255, 0.01);
-    border: 1px solid rgba(255, 255, 255, 0.03);
-    border-radius: 10px;
-    padding: 0.85rem 1rem;
+    background: rgba(18, 22, 36, 0.4);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    padding: 1.25rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.h-exercise-block:hover {
+    border-color: rgba(0, 240, 255, 0.25);
+    box-shadow: 0 0 15px rgba(0, 240, 255, 0.08);
+    transform: translateY(-1px);
 }
 
 .h-ex-header {
@@ -814,13 +839,47 @@ const formatStopwatch = (totalMinutes: number) => {
         gap: 1.25rem;
     }
     
-    .detail-card {
+    .calendar-wrapper-card {
+        padding: 0.85rem;
+        background: rgba(13, 17, 30, 0.4);
+        border-radius: 14px;
+    }
+    
+    .detail-wrapper-area {
         min-height: auto;
+        gap: 0.85rem;
     }
     
     .history-stats-bar {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(3, 1fr);
         gap: 0.5rem;
+    }
+    
+    .h-stat-item {
+        padding: 0.5rem;
+        gap: 0.35rem;
+        flex-direction: column;
+        text-align: center;
+        border-radius: 10px;
+    }
+    
+    .h-stat-icon {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .h-stat-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .h-stat-num {
+        font-size: 0.8rem !important;
+    }
+    
+    .h-stat-label {
+        font-size: 0.55rem !important;
     }
 }
 </style>

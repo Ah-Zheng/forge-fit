@@ -59,6 +59,10 @@ export interface ExerciseDef {
     name: string
     /** 所屬的主訓練肌群 */
     muscle: MuscleGroup
+    /** 💡 常用/目前可承受的重量 (kg，可選) */
+    targetWeight?: number
+    /** 💡 常用/目前單組可承受的次數 (reps，可選) */
+    targetReps?: number
 }
 
 /**

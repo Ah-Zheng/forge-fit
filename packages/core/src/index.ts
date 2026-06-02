@@ -8,7 +8,8 @@ export {
     saveWorkout,
     getExercisesLibrary,
     addCustomExercise,
-    getAllWorkouts
+    getAllWorkouts,
+    updateExerciseLoadRecord
 } from './db/dbService'
 
 // 2. 導出 Google Drive 雲端備份服務

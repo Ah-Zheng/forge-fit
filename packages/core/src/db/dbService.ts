@@ -149,3 +149,19 @@ export function getAllWorkouts(): WorkoutSession[] {
         .filter(session => session.exercises && session.exercises.length > 0) // 💡 僅返回至少安排了動作的有效歷史日誌
         .sort((a, b) => b.date.localeCompare(a.date)) // 按日期由新到舊排列
 }
+
+/**
+ * 💡 更新常用器材/動作的可承受訓練負荷 (重量與次數)
+ * @param exerciseId 動作 ID
+ * @param weight 可承受之重量 (kg)
+ * @param reps 單組次數 (reps)
+ */
+export function updateExerciseLoadRecord(exerciseId: string, weight: number, reps: number): void {
+    const db = initDatabase()
+    const ex = db.exercisesLibrary.find(e => e.id === exerciseId)
+    if (ex) {
+        ex.targetWeight = weight
+        ex.targetReps = reps
+        saveDatabase(db)
+    }
+}

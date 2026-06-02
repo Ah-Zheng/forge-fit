@@ -7,10 +7,9 @@ import type { WorkoutSession, ExerciseDef } from '@forge-fit/types'
 
 import { DashboardPage } from '../pages/dashboard'
 import { LoggerPage } from '../pages/logger'
-import { HistoryPage } from '../pages/history'
 import { LibraryPage } from '../pages/library'
 import { SettingsPage } from '../pages/settings'
-import { Dumbbell, Menu, X, CalendarDays, LayoutDashboard, ClipboardList, BookOpen, Settings } from 'lucide-vue-next'
+import { Dumbbell, Menu, X, LayoutDashboard, ClipboardList, BookOpen, Settings } from 'lucide-vue-next'
 import { SidebarWidget } from '../widgets/sidebar'
 import { MobileNavWidget } from '../widgets/mobile-nav'
 import { useMediaQuery } from '../shared/lib/useMediaQuery'
@@ -31,8 +30,9 @@ const getTodayDateString = () => {
 }
 
 const todayStr = ref('')
+const workoutDate = ref('') // 💡 當前正在編輯/補記的重量日誌日期，預設為今天
 const currentDateStr = ref('')
-// 今日重訓日誌的響應式狀態 (Ref)
+// 當前選取/正在編輯的重訓日誌狀態 (Ref)
 const todaySession = ref<WorkoutSession>({ date: '', exercises: [], duration: 0 })
 // 百科動作庫
 const exercisesLibrary = ref<ExerciseDef[]>([])
@@ -43,9 +43,10 @@ const initAppDatabase = () => {
     initDatabase()
 
     todayStr.value = getTodayDateString()
+    workoutDate.value = todayStr.value
 
-    // 載入今日的重訓紀錄日誌
-    todaySession.value = getWorkoutByDate(todayStr.value)
+    // 載入當前編輯日期的重訓紀錄日誌
+    todaySession.value = getWorkoutByDate(workoutDate.value)
 
     // 載入動作庫清單
     exercisesLibrary.value = getExercisesLibrary()
@@ -60,13 +61,20 @@ onMounted(() => {
     initAppDatabase()
 })
 
-// 2. ⚡ 神級響應式設計：深層監聽 (Deep Watch) 今日日誌狀態
-// 當日誌中任何「重量、次數、完成狀態或新增組數」發生變更時，自動微秒級存檔到 LocalStorage！
+// 💡 當編輯的日期切換時，自動重新從本機載入該日期的 session
+watch(workoutDate, (newDate) => {
+    if (newDate) {
+        todaySession.value = getWorkoutByDate(newDate)
+    }
+})
+
+// 2. ⚡ 神級響應式設計：深層監聽 (Deep Watch) 日誌狀態
+// 當日誌中任何「重量、次數、完成狀態或新增組數」發生變更時，自動微秒級存檔到 LocalStorage 對應日期中！
 watch(
     todaySession,
     newSession => {
-        if (todayStr.value) {
-            saveWorkout(todayStr.value, newSession)
+        if (newSession.date) {
+            saveWorkout(newSession.date, newSession)
         }
     },
     { deep: true }
@@ -78,12 +86,15 @@ const handleAddExercise = (exercise: ExerciseDef) => {
     const exists = todaySession.value.exercises.some(ex => ex.exerciseId === exercise.id)
 
     if (!exists) {
-        // 若不存在，新增一個空動作區塊並預設附帶 1 組
+        // 💡 智慧數據連動：優先讀取常用動作庫中所紀錄的可承受重量與次數，若無則以 40kg / 10下作為 fallback 預設第一組
+        const defaultWeight = typeof exercise.targetWeight === 'number' ? exercise.targetWeight : 40
+        const defaultReps = typeof exercise.targetReps === 'number' ? exercise.targetReps : 10
+        
         todaySession.value.exercises.push({
             exerciseId: exercise.id,
             name: exercise.name,
             muscle: exercise.muscle,
-            sets: [{ weight: 40, reps: 10, completed: false }]
+            sets: [{ weight: defaultWeight, reps: defaultReps, completed: false }]
         })
     }
 
@@ -91,18 +102,31 @@ const handleAddExercise = (exercise: ExerciseDef) => {
     currentTab.value = 'logger'
 }
 
-// 4. 行動版頁面切換控制
+// 4. 頁面與日期切換連動控制
 const currentTab = ref('dashboard')
 
-// 動態解析當前掛載的分頁組件
+// 💡 宣告中央大 + 按鈕一鍵開啟挑選抽屜的信號 Ref
+const openDrawerSignal = ref(0)
+
+const handleCenterAdd = () => {
+    currentTab.value = 'logger'
+    openDrawerSignal.value++
+}
+
+const handleSwitchTab = (tab: string, date?: string) => {
+    currentTab.value = tab
+    if (date) {
+        workoutDate.value = date
+    }
+}
+
+// 動態解析當前掛載的分頁組件 (已徹底將 History 融合至日誌中心，在此移除 HistoryPage 節點)
 const activePage = computed(() => {
     switch (currentTab.value) {
         case 'dashboard':
             return DashboardPage
         case 'logger':
             return LoggerPage
-        case 'history':
-            return HistoryPage
         case 'library':
             return LibraryPage
         case 'settings':
@@ -112,15 +136,13 @@ const activePage = computed(() => {
     }
 })
 
-// 依據分頁動態產生標題
+// 依據分頁動態產生標題 (已升級 Logger 頁面為極具質感的「重訓時光日誌」)
 const pageTitle = computed(() => {
     switch (currentTab.value) {
         case 'dashboard':
             return '今日訓練看板'
         case 'logger':
-            return '今日重量日誌'
-        case 'history':
-            return '重訓歷史紀錄'
+            return '重訓時光日誌'
         case 'library':
             return '常用器材動作庫'
         case 'settings':
@@ -168,14 +190,21 @@ const pageTitle = computed(() => {
                     :is="activePage"
                     :session="todaySession"
                     :exercises-library="exercisesLibrary"
+                    :open-drawer-signal="openDrawerSignal"
                     @add-exercise="handleAddExercise"
-                    @switch-tab="currentTab = $event"
+                    @switch-tab="handleSwitchTab"
+                    @change-date="workoutDate = $event"
+                    @refresh-library="exercisesLibrary = getExercisesLibrary()"
                 />
             </KeepAlive>
         </main>
 
         <!-- 📱 PWA 行動版底部導覽列 (A+B 方案：只在行動端下渲染，徹底銷毀 DOM 冗餘) -->
-        <MobileNavWidget v-if="isMobile" v-model:currentTab="currentTab" />
+        <MobileNavWidget 
+            v-if="isMobile" 
+            v-model:currentTab="currentTab" 
+            @click-add="handleCenterAdd"
+        />
     </div>
 
     <!-- 💡 手機版毛玻璃科技風「側邊抽屜導航」 (與行動端側邊欄邏輯完美雙修) -->
@@ -222,14 +251,7 @@ const pageTitle = computed(() => {
                         <ClipboardList :size="18" />
                         <span>今日重量日誌</span>
                     </button>
-                    <button 
-                        @click="currentTab = 'history'; isMobileDrawerOpen = false"
-                        class="drawer-item" 
-                        :class="{ active: currentTab === 'history' }"
-                    >
-                        <CalendarDays :size="18" />
-                        <span>重訓歷史紀錄</span>
-                    </button>
+
                     <button 
                         @click="currentTab = 'library'; isMobileDrawerOpen = false"
                         class="drawer-item" 

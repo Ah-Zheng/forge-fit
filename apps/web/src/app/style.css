@@ -46,6 +46,12 @@
     -webkit-tap-highlight-color: transparent; /* Disable blue flash on mobile tap */
 }
 
+html, body {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+}
+
 body {
     background-color: var(--bg-primary);
     color: var(--text-main);
@@ -57,8 +63,6 @@ body {
         'Segoe UI',
         Roboto,
         sans-serif;
-    min-height: 100vh;
-    overflow-x: hidden;
     letter-spacing: 0.02em;
     padding-bottom: env(safe-area-inset-bottom); /* iOS home bar padding */
 }
@@ -66,8 +70,10 @@ body {
 /* App Container Layout */
 .app-container {
     display: flex;
-    min-height: 100vh;
+    height: 100%;
+    height: 100dvh;
     width: 100vw;
+    overflow: hidden;
 }
 
 /* Scrollbar Style */
@@ -231,7 +237,9 @@ body {
     flex-grow: 1;
     padding: 2rem 2.5rem;
     overflow-y: auto;
-    max-height: 100vh;
+    height: 100%;
+    max-height: 100vh; /* fallback */
+    max-height: 100dvh;
     padding-bottom: 5rem; /* Allow space for PWA bottom bar */
 }
 
@@ -775,7 +783,6 @@ body {
 
 .search-bar {
     position: relative;
-    margin-bottom: 1rem;
 }
 
 .search-icon {
@@ -859,14 +866,51 @@ body {
     left: 0;
     width: 100vw;
     height: calc(56px + env(safe-area-inset-bottom));
-    background: rgba(5, 7, 11, 0.9);
+    background: rgba(5, 7, 11, 0.95);
     backdrop-filter: blur(20px);
     border-top: 1px solid var(--border-soft);
     display: none; /* Show only on mobile viewports */
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     align-items: center;
     padding-bottom: env(safe-area-inset-bottom);
     z-index: 50;
+}
+
+/* 💡 Moze 記帳風：正中間核心大 + 按鈕包裝與樣式 */
+.mobile-nav-center-btn-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+    position: relative;
+    width: 100%;
+}
+
+.mobile-nav-center-btn {
+    position: absolute;
+    bottom: 12px; /* 向上凸出 */
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--color-cyan) 0%, #007bff 100%) !important;
+    border: 3px solid #05070b !important; /* 與底層底色隔開，塑造極致懸浮感 */
+    color: #FFF !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 18px rgba(0, 240, 255, 0.45);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 60;
+}
+
+.mobile-nav-center-btn:hover {
+    transform: translateY(-2px) scale(1.05);
+    box-shadow: 0 6px 24px rgba(0, 240, 255, 0.65);
+}
+
+.mobile-nav-center-btn:active {
+    transform: translateY(0) scale(0.92);
 }
 
 .mobile-nav-item {
@@ -1100,7 +1144,10 @@ body {
     }
 
     .app-main {
-        padding: calc(84px + env(safe-area-inset-top)) 1rem 5.5rem 1rem; /* 💡 配合矮 Header (60px + safe) 動態調整，在所有手機上永久精準維持 24px 美觀下緣呼吸間距 */
+        padding: calc(84px + env(safe-area-inset-top)) 1rem calc(56px + env(safe-area-inset-bottom) + 16px) 1rem; /* 💡 配合矮 Header 動態調整，並精確留空底部導航高度，釋放多餘高度防卷軸 */
+        height: 100%;
+        max-height: 100vh; /* fallback */
+        max-height: 100dvh;
     }
 
     .header-title {
@@ -1200,3 +1247,32 @@ body {
         opacity: 0;
     }
 }
+
+/* 🖥️ PC 大螢幕左右雙欄響應式佈局 (min-width: 1024px) */
+@media (min-width: 1024px) {
+    .dashboard-grid {
+        grid-template-columns: 30% 1fr !important;
+        gap: 1.5rem !important;
+        max-width: 100% !important;
+        margin: 0;
+        align-items: start;
+    }
+
+    .stats-card-wrapper {
+        grid-template-columns: 1fr !important;
+        gap: 1.25rem !important;
+    }
+
+    .chart-card {
+        margin-bottom: 0 !important;
+        height: 100%;
+    }
+
+    .app-header {
+        max-width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        width: 100% !important;
+    }
+}
+

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import {
-    Settings,
     Cloud,
     CloudLightning,
     RefreshCw,
@@ -26,13 +25,13 @@ const storage: Storage =
     typeof window !== 'undefined'
         ? window.localStorage
         : {
-              getItem: () => null,
-              setItem: () => {},
-              removeItem: () => {},
-              clear: () => {},
-              length: 0,
-              key: () => null
-          }
+            getItem: () => null,
+            setItem: () => {},
+            removeItem: () => {},
+            clear: () => {},
+            length: 0,
+            key: () => null
+        }
 
 /** 雲端硬碟授權所得的短效 access token */
 const accessToken = ref<string | null>(null)
@@ -449,18 +448,7 @@ const handleResetApp = () => {
 </script>
 
 <template>
-    <div class="glass-card settings-root-card" style="animation: fadeInUp 0.4s ease forwards">
-        <!-- 頁頭 -->
-        <div class="card-header" style="margin-bottom: 1.5rem">
-            <div class="card-title-group">
-                <Settings
-                    class="text-cyan"
-                    :size="24"
-                    style="filter: drop-shadow(0 0 4px var(--color-cyan))"
-                />
-                <h2>系統設定與備份</h2>
-            </div>
-        </div>
+    <div class="settings-page-wrapper" style="animation: fadeInUp 0.4s ease forwards">
 
         <!-- 💡 區塊一：Google Drive 雲端備份控制面板 -->
         <div class="settings-section">
@@ -804,17 +792,26 @@ const handleResetApp = () => {
 </template>
 
 <style scoped>
-.settings-root-card {
+.settings-page-wrapper {
     position: relative;
     max-width: 600px;
     margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
 }
 
 .settings-section {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(18, 22, 36, 0.45);
+    border: 1px solid var(--border-soft);
     border-radius: 12px;
     padding: 1.25rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.settings-section:hover {
+    border-color: rgba(0, 240, 255, 0.15);
+    box-shadow: 0 0 15px rgba(0, 240, 255, 0.05);
 }
 
 .section-title {
@@ -1308,6 +1305,10 @@ const handleResetApp = () => {
 }
 
 @media (max-width: 576px) {
+    .settings-section {
+        padding: 1rem;
+    }
+
     /* 💡 手機版同步按鈕垂直排列，提供超大且好按的點擊觸感 */
     .sync-actions-row {
         grid-template-columns: 1fr;
