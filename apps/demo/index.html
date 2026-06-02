@@ -1,361 +1,453 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>ForgeFit | 智慧健身 PWA 日誌</title>
-    <meta name="description" content="ForgeFit - 專為手機與行動裝置打造的暗黑科技風重量紀錄 PWA 應用。">
-    
-    <!-- PWA Meta Tags -->
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#080A10">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="ForgeFit">
-    <link rel="apple-touch-icon" href="logo.svg">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+        />
+        <title>ForgeFit | 智慧健身 PWA 日誌</title>
+        <meta
+            name="description"
+            content="ForgeFit - 專為手機與行動裝置打造的暗黑科技風重量紀錄 PWA 應用。"
+        />
 
-    <!-- Google Fonts: Outfit & Noto Sans TC -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-    
-    <!-- Lucide Icons CDN -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Custom Style Sheet -->
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    <div class="app-container">
-        <!-- Sidebar Navigation (Hidden on Mobile) -->
-        <aside class="app-sidebar">
-            <div class="sidebar-brand">
-                <div class="brand-icon">
-                    <i data-lucide="dumbbell" class="neon-glow-icon"></i>
-                </div>
-                <span class="brand-text">FORGE<span>FIT</span></span>
-            </div>
-            
-            <nav class="sidebar-menu">
-                <a href="#" class="menu-item active" data-target="page-dashboard">
-                    <i data-lucide="layout-dashboard"></i>
-                    <span>訓練看板</span>
-                </a>
-                <a href="#" class="menu-item" data-target="page-logger">
-                    <i data-lucide="clipboard-list"></i>
-                    <span>重量紀錄</span>
-                </a>
-                <a href="#" class="menu-item" data-target="page-library">
-                    <i data-lucide="book-open"></i>
-                    <span>器材百科</span>
-                </a>
-            </nav>
-            
-            <div class="sidebar-user">
-                <div class="user-avatar">
-                    <i data-lucide="user"></i>
-                </div>
-                <div class="user-info">
-                    <div class="user-name">悍將健身者</div>
-                    <div class="user-rank">Lv.5 鋼鐵核心</div>
-                </div>
-            </div>
-        </aside>
+        <!-- PWA Meta Tags -->
+        <link rel="manifest" href="manifest.json" />
+        <meta name="theme-color" content="#080A10" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="ForgeFit" />
+        <link rel="apple-touch-icon" href="logo.svg" />
 
-        <!-- Main Workspace -->
-        <main class="app-main">
-            <!-- Mobile Top Header Bar -->
-            <header class="app-header">
-                <div class="header-title-section">
-                    <div class="mobile-brand">
-                        <i data-lucide="dumbbell" class="text-cyan"></i>
-                        <span>FORGE<span>FIT</span></span>
+        <!-- Google Fonts: Outfit & Noto Sans TC -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Outfit:wght@300;400;600;800&display=swap"
+            rel="stylesheet"
+        />
+
+        <!-- Lucide Icons CDN -->
+        <script src="https://unpkg.com/lucide@latest"></script>
+        <!-- Chart.js CDN -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <!-- Custom Style Sheet -->
+        <link rel="stylesheet" href="style.css" />
+    </head>
+    <body>
+        <div class="app-container">
+            <!-- Sidebar Navigation (Hidden on Mobile) -->
+            <aside class="app-sidebar">
+                <div class="sidebar-brand">
+                    <div class="brand-icon">
+                        <i data-lucide="dumbbell" class="neon-glow-icon"></i>
                     </div>
-                    <h1 class="header-title" id="page-title">今日訓練看板</h1>
-                    <p class="header-subtitle" id="current-date">Loading date...</p>
+                    <span class="brand-text">FORGE<span>FIT</span></span>
                 </div>
-                <div class="header-actions">
-                    <button class="btn btn-primary btn-circle-add" id="btn-quick-log" title="新增訓練動作">
-                        <i data-lucide="plus"></i>
-                    </button>
-                </div>
-            </header>
 
-            <!-- 1. Dashboard View (Active by Default) -->
-            <div id="page-dashboard" class="app-page active">
-                <div class="dashboard-grid">
-                    <!-- Mobile Compact Stats Row -->
-                    <div class="stats-card-wrapper full-width">
-                        <div class="stat-card">
-                            <div class="stat-icon-box cyan-glow">
-                                <i data-lucide="flame"></i>
+                <nav class="sidebar-menu">
+                    <a href="#" class="menu-item active" data-target="page-dashboard">
+                        <i data-lucide="layout-dashboard"></i>
+                        <span>訓練看板</span>
+                    </a>
+                    <a href="#" class="menu-item" data-target="page-logger">
+                        <i data-lucide="clipboard-list"></i>
+                        <span>重量紀錄</span>
+                    </a>
+                    <a href="#" class="menu-item" data-target="page-library">
+                        <i data-lucide="book-open"></i>
+                        <span>器材百科</span>
+                    </a>
+                </nav>
+
+                <div class="sidebar-user">
+                    <div class="user-avatar">
+                        <i data-lucide="user"></i>
+                    </div>
+                    <div class="user-info">
+                        <div class="user-name">悍將健身者</div>
+                        <div class="user-rank">Lv.5 鋼鐵核心</div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Main Workspace -->
+            <main class="app-main">
+                <!-- Mobile Top Header Bar -->
+                <header class="app-header">
+                    <div class="header-title-section">
+                        <div class="mobile-brand">
+                            <i data-lucide="dumbbell" class="text-cyan"></i>
+                            <span>FORGE<span>FIT</span></span>
+                        </div>
+                        <h1 class="header-title" id="page-title">今日訓練看板</h1>
+                        <p class="header-subtitle" id="current-date">Loading date...</p>
+                    </div>
+                    <div class="header-actions">
+                        <button
+                            class="btn btn-primary btn-circle-add"
+                            id="btn-quick-log"
+                            title="新增訓練動作"
+                        >
+                            <i data-lucide="plus"></i>
+                        </button>
+                    </div>
+                </header>
+
+                <!-- 1. Dashboard View (Active by Default) -->
+                <div id="page-dashboard" class="app-page active">
+                    <div class="dashboard-grid">
+                        <!-- Mobile Compact Stats Row -->
+                        <div class="stats-card-wrapper full-width">
+                            <div class="stat-card">
+                                <div class="stat-icon-box cyan-glow">
+                                    <i data-lucide="flame"></i>
+                                </div>
+                                <div class="stat-data">
+                                    <div class="stat-value" id="stat-volume">
+                                        5,120 <span class="unit">kg</span>
+                                    </div>
+                                    <div class="stat-label">今日總訓練量</div>
+                                </div>
                             </div>
-                            <div class="stat-data">
-                                <div class="stat-value" id="stat-volume">5,120 <span class="unit">kg</span></div>
-                                <div class="stat-label">今日總訓練量</div>
+                            <div class="stat-card">
+                                <div class="stat-icon-box blue-glow">
+                                    <i data-lucide="check-circle-2"></i>
+                                </div>
+                                <div class="stat-data">
+                                    <div class="stat-value" id="stat-sets">
+                                        12 <span class="unit">組</span>
+                                    </div>
+                                    <div class="stat-label">今日完成組數</div>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon-box purple-glow">
+                                    <i data-lucide="timer-reset"></i>
+                                </div>
+                                <div class="stat-data">
+                                    <div class="stat-value" id="stat-time">
+                                        45 <span class="unit">分</span>
+                                    </div>
+                                    <div class="stat-label">運動時長</div>
+                                </div>
                             </div>
                         </div>
-                        <div class="stat-card">
-                            <div class="stat-icon-box blue-glow">
-                                <i data-lucide="check-circle-2"></i>
+
+                        <!-- Training Volume Donut Chart -->
+                        <div class="glass-card chart-card full-width">
+                            <div class="card-header">
+                                <div class="card-title-group">
+                                    <i data-lucide="pie-chart" class="text-cyan"></i>
+                                    <h2>部位訓練量比例</h2>
+                                </div>
                             </div>
-                            <div class="stat-data">
-                                <div class="stat-value" id="stat-sets">12 <span class="unit">組</span></div>
-                                <div class="stat-label">今日完成組數</div>
+                            <div class="chart-container">
+                                <canvas id="muscleDistributionChart"></canvas>
                             </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon-box purple-glow">
-                                <i data-lucide="timer-reset"></i>
-                            </div>
-                            <div class="stat-data">
-                                <div class="stat-value" id="stat-time">45 <span class="unit">分</span></div>
-                                <div class="stat-label">運動時長</div>
+                            <div class="chart-legend-custom" id="chart-legend">
+                                <!-- Loaded Dynamically -->
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Training Volume Donut Chart -->
-                    <div class="glass-card chart-card full-width">
+                <!-- 2. Logger View -->
+                <div id="page-logger" class="app-page">
+                    <div class="glass-card logger-card">
                         <div class="card-header">
                             <div class="card-title-group">
-                                <i data-lucide="pie-chart" class="text-cyan"></i>
-                                <h2>部位訓練量比例</h2>
+                                <i data-lucide="activity" class="text-cyan"></i>
+                                <h2>今日訓練日誌</h2>
                             </div>
+                            <span class="workout-status-badge">鍛鍊中</span>
                         </div>
-                        <div class="chart-container">
-                            <canvas id="muscleDistributionChart"></canvas>
-                        </div>
-                        <div class="chart-legend-custom" id="chart-legend">
-                            <!-- Loaded Dynamically -->
-                        </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- 2. Logger View -->
-            <div id="page-logger" class="app-page">
-                <div class="glass-card logger-card">
-                    <div class="card-header">
-                        <div class="card-title-group">
-                            <i data-lucide="activity" class="text-cyan"></i>
-                            <h2>今日訓練日誌</h2>
-                        </div>
-                        <span class="workout-status-badge">鍛鍊中</span>
-                    </div>
-                    
-                    <div class="exercises-container" id="exercises-list">
-                        <!-- Dynamic Exercise Blocks -->
-                        <div class="exercise-block card-glow-blue" data-exercise-id="ex-1" data-muscle="chest">
-                            <div class="exercise-header">
-                                <div class="exercise-title-area">
-                                    <div class="exercise-icon">
-                                        <i data-lucide="dumbbell"></i>
+                        <div class="exercises-container" id="exercises-list">
+                            <!-- Dynamic Exercise Blocks -->
+                            <div
+                                class="exercise-block card-glow-blue"
+                                data-exercise-id="ex-1"
+                                data-muscle="chest"
+                            >
+                                <div class="exercise-header">
+                                    <div class="exercise-title-area">
+                                        <div class="exercise-icon">
+                                            <i data-lucide="dumbbell"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="exercise-name">槓鈴平躺臥推</h3>
+                                            <span class="exercise-muscle-tag tag-chest"
+                                                >胸部 (Chest)</span
+                                            >
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 class="exercise-name">槓鈴平躺臥推</h3>
-                                        <span class="exercise-muscle-tag tag-chest">胸部 (Chest)</span>
+                                    <button class="btn-icon delete-exercise-btn" title="刪除動作">
+                                        <i data-lucide="trash-2"></i>
+                                    </button>
+                                </div>
+
+                                <div class="set-rows-container">
+                                    <div class="set-header-row">
+                                        <span class="col-num">組次</span>
+                                        <span class="col-weight">重量 (kg)</span>
+                                        <span class="col-reps">次數 (reps)</span>
+                                        <span class="col-status">完成</span>
+                                    </div>
+
+                                    <div class="set-row active-row" data-set-index="0">
+                                        <span class="set-num">1</span>
+                                        <div class="stepper-input">
+                                            <button class="btn-step btn-minus">-</button>
+                                            <input
+                                                type="number"
+                                                class="weight-input"
+                                                value="60"
+                                                min="0"
+                                                step="2.5"
+                                                readonly
+                                            />
+                                            <button class="btn-step btn-plus">+</button>
+                                        </div>
+                                        <div class="stepper-input">
+                                            <button class="btn-step btn-minus">-</button>
+                                            <input
+                                                type="number"
+                                                class="reps-input"
+                                                value="10"
+                                                min="0"
+                                                readonly
+                                            />
+                                            <button class="btn-step btn-plus">+</button>
+                                        </div>
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" class="set-checkbox" checked />
+                                            <span class="checkmark"></span>
+                                        </label>
+                                    </div>
+
+                                    <div class="set-row active-row" data-set-index="1">
+                                        <span class="set-num">2</span>
+                                        <div class="stepper-input">
+                                            <button class="btn-step btn-minus">-</button>
+                                            <input
+                                                type="number"
+                                                class="weight-input"
+                                                value="60"
+                                                min="0"
+                                                step="2.5"
+                                                readonly
+                                            />
+                                            <button class="btn-step btn-plus">+</button>
+                                        </div>
+                                        <div class="stepper-input">
+                                            <button class="btn-step btn-minus">-</button>
+                                            <input
+                                                type="number"
+                                                class="reps-input"
+                                                value="10"
+                                                min="0"
+                                                readonly
+                                            />
+                                            <button class="btn-step btn-plus">+</button>
+                                        </div>
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" class="set-checkbox" checked />
+                                            <span class="checkmark"></span>
+                                        </label>
+                                    </div>
+
+                                    <div class="set-row active-row" data-set-index="2">
+                                        <span class="set-num">3</span>
+                                        <div class="stepper-input">
+                                            <button class="btn-step btn-minus">-</button>
+                                            <input
+                                                type="number"
+                                                class="weight-input"
+                                                value="65"
+                                                min="0"
+                                                step="2.5"
+                                                readonly
+                                            />
+                                            <button class="btn-step btn-plus">+</button>
+                                        </div>
+                                        <div class="stepper-input">
+                                            <button class="btn-step btn-minus">-</button>
+                                            <input
+                                                type="number"
+                                                class="reps-input"
+                                                value="8"
+                                                min="0"
+                                                readonly
+                                            />
+                                            <button class="btn-step btn-plus">+</button>
+                                        </div>
+                                        <label class="checkbox-container">
+                                            <input type="checkbox" class="set-checkbox" checked />
+                                            <span class="checkmark"></span>
+                                        </label>
                                     </div>
                                 </div>
-                                <button class="btn-icon delete-exercise-btn" title="刪除動作">
-                                    <i data-lucide="trash-2"></i>
+                                <button class="btn btn-secondary btn-sm add-set-btn">
+                                    <i data-lucide="plus"></i> 新增組數
                                 </button>
                             </div>
-                            
-                            <div class="set-rows-container">
-                                <div class="set-header-row">
-                                    <span class="col-num">組次</span>
-                                    <span class="col-weight">重量 (kg)</span>
-                                    <span class="col-reps">次數 (reps)</span>
-                                    <span class="col-status">完成</span>
-                                </div>
-                                
-                                <div class="set-row active-row" data-set-index="0">
-                                    <span class="set-num">1</span>
-                                    <div class="stepper-input">
-                                        <button class="btn-step btn-minus">-</button>
-                                        <input type="number" class="weight-input" value="60" min="0" step="2.5" readonly>
-                                        <button class="btn-step btn-plus">+</button>
-                                    </div>
-                                    <div class="stepper-input">
-                                        <button class="btn-step btn-minus">-</button>
-                                        <input type="number" class="reps-input" value="10" min="0" readonly>
-                                        <button class="btn-step btn-plus">+</button>
-                                    </div>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" class="set-checkbox" checked>
-                                        <span class="checkmark"></span>
-                                    </label>
-                                </div>
-                                
-                                <div class="set-row active-row" data-set-index="1">
-                                    <span class="set-num">2</span>
-                                    <div class="stepper-input">
-                                        <button class="btn-step btn-minus">-</button>
-                                        <input type="number" class="weight-input" value="60" min="0" step="2.5" readonly>
-                                        <button class="btn-step btn-plus">+</button>
-                                    </div>
-                                    <div class="stepper-input">
-                                        <button class="btn-step btn-minus">-</button>
-                                        <input type="number" class="reps-input" value="10" min="0" readonly>
-                                        <button class="btn-step btn-plus">+</button>
-                                    </div>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" class="set-checkbox" checked>
-                                        <span class="checkmark"></span>
-                                    </label>
-                                </div>
-
-                                <div class="set-row active-row" data-set-index="2">
-                                    <span class="set-num">3</span>
-                                    <div class="stepper-input">
-                                        <button class="btn-step btn-minus">-</button>
-                                        <input type="number" class="weight-input" value="65" min="0" step="2.5" readonly>
-                                        <button class="btn-step btn-plus">+</button>
-                                    </div>
-                                    <div class="stepper-input">
-                                        <button class="btn-step btn-minus">-</button>
-                                        <input type="number" class="reps-input" value="8" min="0" readonly>
-                                        <button class="btn-step btn-plus">+</button>
-                                    </div>
-                                    <label class="checkbox-container">
-                                        <input type="checkbox" class="set-checkbox" checked>
-                                        <span class="checkmark"></span>
-                                    </label>
-                                </div>
-                            </div>
-                            <button class="btn btn-secondary btn-sm add-set-btn">
-                                <i data-lucide="plus"></i> 新增組數
-                            </button>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- 3. Encyclopedia View -->
-            <div id="page-library" class="app-page">
-                <div class="glass-card library-quick-card">
-                    <div class="card-header">
-                        <div class="card-title-group">
-                            <i data-lucide="bookmark-plus" class="text-blue"></i>
-                            <h2>常用器材動作庫</h2>
-                        </div>
-                    </div>
-                    <div class="search-bar">
-                        <i data-lucide="search" class="search-icon"></i>
-                        <input type="text" id="lib-search" placeholder="搜尋動作 (如：深蹲、臥推...)">
-                    </div>
-                    <div class="quick-exercise-list" id="quick-lib-list">
-                        <!-- Quick Add Items -->
-                        <div class="quick-lib-item" data-name="槓鈴深蹲" data-muscle="legs" data-muscle-zh="腿部">
-                            <div class="item-info">
-                                <div class="item-name">槓鈴深蹲</div>
-                                <span class="badge tag-legs">腿部 (Legs)</span>
+                <!-- 3. Encyclopedia View -->
+                <div id="page-library" class="app-page">
+                    <div class="glass-card library-quick-card">
+                        <div class="card-header">
+                            <div class="card-title-group">
+                                <i data-lucide="bookmark-plus" class="text-blue"></i>
+                                <h2>常用器材動作庫</h2>
                             </div>
-                            <button class="btn-quick-add" title="加入今日訓練">
-                                <i data-lucide="plus-circle"></i>
-                            </button>
                         </div>
-                        <div class="quick-lib-item" data-name="啞鈴側平舉" data-muscle="shoulders" data-muscle-zh="肩膀">
-                            <div class="item-info">
-                                <div class="item-name">啞鈴側平舉</div>
-                                <span class="badge tag-shoulders">肩膀 (Shoulders)</span>
-                            </div>
-                            <button class="btn-quick-add" title="加入今日訓練">
-                                <i data-lucide="plus-circle"></i>
-                            </button>
+                        <div class="search-bar">
+                            <i data-lucide="search" class="search-icon"></i>
+                            <input
+                                type="text"
+                                id="lib-search"
+                                placeholder="搜尋動作 (如：深蹲、臥推...)"
+                            />
                         </div>
-                        <div class="quick-lib-item" data-name="羅馬尼亞硬舉" data-muscle="back" data-muscle-zh="背部">
-                            <div class="item-info">
-                                <div class="item-name">羅馬尼亞硬舉</div>
-                                <span class="badge tag-back">背部 (Back)</span>
+                        <div class="quick-exercise-list" id="quick-lib-list">
+                            <!-- Quick Add Items -->
+                            <div
+                                class="quick-lib-item"
+                                data-name="槓鈴深蹲"
+                                data-muscle="legs"
+                                data-muscle-zh="腿部"
+                            >
+                                <div class="item-info">
+                                    <div class="item-name">槓鈴深蹲</div>
+                                    <span class="badge tag-legs">腿部 (Legs)</span>
+                                </div>
+                                <button class="btn-quick-add" title="加入今日訓練">
+                                    <i data-lucide="plus-circle"></i>
+                                </button>
                             </div>
-                            <button class="btn-quick-add" title="加入今日訓練">
-                                <i data-lucide="plus-circle"></i>
-                            </button>
-                        </div>
-                        <div class="quick-lib-item" data-name="啞鈴雙臂彎舉" data-muscle="arms" data-muscle-zh="手臂">
-                            <div class="item-info">
-                                <div class="item-name">啞鈴雙臂彎舉</div>
-                                <span class="badge tag-arms">手臂 (Arms)</span>
+                            <div
+                                class="quick-lib-item"
+                                data-name="啞鈴側平舉"
+                                data-muscle="shoulders"
+                                data-muscle-zh="肩膀"
+                            >
+                                <div class="item-info">
+                                    <div class="item-name">啞鈴側平舉</div>
+                                    <span class="badge tag-shoulders">肩膀 (Shoulders)</span>
+                                </div>
+                                <button class="btn-quick-add" title="加入今日訓練">
+                                    <i data-lucide="plus-circle"></i>
+                                </button>
                             </div>
-                            <button class="btn-quick-add" title="加入今日訓練">
-                                <i data-lucide="plus-circle"></i>
-                            </button>
+                            <div
+                                class="quick-lib-item"
+                                data-name="羅馬尼亞硬舉"
+                                data-muscle="back"
+                                data-muscle-zh="背部"
+                            >
+                                <div class="item-info">
+                                    <div class="item-name">羅馬尼亞硬舉</div>
+                                    <span class="badge tag-back">背部 (Back)</span>
+                                </div>
+                                <button class="btn-quick-add" title="加入今日訓練">
+                                    <i data-lucide="plus-circle"></i>
+                                </button>
+                            </div>
+                            <div
+                                class="quick-lib-item"
+                                data-name="啞鈴雙臂彎舉"
+                                data-muscle="arms"
+                                data-muscle-zh="手臂"
+                            >
+                                <div class="item-info">
+                                    <div class="item-name">啞鈴雙臂彎舉</div>
+                                    <span class="badge tag-arms">手臂 (Arms)</span>
+                                </div>
+                                <button class="btn-quick-add" title="加入今日訓練">
+                                    <i data-lucide="plus-circle"></i>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </main>
+            </main>
 
-        <!-- PWA Mobile Bottom Navigation Bar -->
-        <nav class="mobile-nav-bar">
-            <button class="mobile-nav-item active" data-target="page-dashboard">
-                <i data-lucide="layout-dashboard"></i>
-                <span>看板</span>
-            </button>
-            <button class="mobile-nav-item" data-target="page-logger">
-                <i data-lucide="clipboard-list"></i>
-                <span>重量紀錄</span>
-            </button>
-            <button class="mobile-nav-item" data-target="page-library">
-                <i data-lucide="book-open"></i>
-                <span>百科</span>
-            </button>
-        </nav>
-    </div>
-
-    <!-- Quick Log Modal -->
-    <div class="modal-overlay" id="add-exercise-modal">
-        <div class="glass-modal">
-            <div class="modal-header">
-                <h2>選擇新訓練動作</h2>
-                <button class="btn-icon modal-close-btn" id="modal-close">
-                    <i data-lucide="x"></i>
+            <!-- PWA Mobile Bottom Navigation Bar -->
+            <nav class="mobile-nav-bar">
+                <button class="mobile-nav-item active" data-target="page-dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>看板</span>
                 </button>
-            </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label for="modal-exercise-name">動作名稱</label>
-                    <input type="text" id="modal-exercise-name" placeholder="輸入自訂動作名稱，如：啞鈴斜板臥推">
+                <button class="mobile-nav-item" data-target="page-logger">
+                    <i data-lucide="clipboard-list"></i>
+                    <span>重量紀錄</span>
+                </button>
+                <button class="mobile-nav-item" data-target="page-library">
+                    <i data-lucide="book-open"></i>
+                    <span>百科</span>
+                </button>
+            </nav>
+        </div>
+
+        <!-- Quick Log Modal -->
+        <div class="modal-overlay" id="add-exercise-modal">
+            <div class="glass-modal">
+                <div class="modal-header">
+                    <h2>選擇新訓練動作</h2>
+                    <button class="btn-icon modal-close-btn" id="modal-close">
+                        <i data-lucide="x"></i>
+                    </button>
                 </div>
-                <div class="form-group">
-                    <label>主訓練肌群</label>
-                    <div class="muscle-selector-grid">
-                        <label class="muscle-radio">
-                            <input type="radio" name="modal-muscle" value="chest" checked>
-                            <span class="radio-label tag-chest">胸部</span>
-                        </label>
-                        <label class="muscle-radio">
-                            <input type="radio" name="modal-muscle" value="back">
-                            <span class="radio-label tag-back">背部</span>
-                        </label>
-                        <label class="muscle-radio">
-                            <input type="radio" name="modal-muscle" value="legs">
-                            <span class="radio-label tag-legs">腿部</span>
-                        </label>
-                        <label class="muscle-radio">
-                            <input type="radio" name="modal-muscle" value="shoulders">
-                            <span class="radio-label tag-shoulders">肩膀</span>
-                        </label>
-                        <label class="muscle-radio">
-                            <input type="radio" name="modal-muscle" value="arms">
-                            <span class="radio-label tag-arms">手臂</span>
-                        </label>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="modal-exercise-name">動作名稱</label>
+                        <input
+                            type="text"
+                            id="modal-exercise-name"
+                            placeholder="輸入自訂動作名稱，如：啞鈴斜板臥推"
+                        />
+                    </div>
+                    <div class="form-group">
+                        <label>主訓練肌群</label>
+                        <div class="muscle-selector-grid">
+                            <label class="muscle-radio">
+                                <input type="radio" name="modal-muscle" value="chest" checked />
+                                <span class="radio-label tag-chest">胸部</span>
+                            </label>
+                            <label class="muscle-radio">
+                                <input type="radio" name="modal-muscle" value="back" />
+                                <span class="radio-label tag-back">背部</span>
+                            </label>
+                            <label class="muscle-radio">
+                                <input type="radio" name="modal-muscle" value="legs" />
+                                <span class="radio-label tag-legs">腿部</span>
+                            </label>
+                            <label class="muscle-radio">
+                                <input type="radio" name="modal-muscle" value="shoulders" />
+                                <span class="radio-label tag-shoulders">肩膀</span>
+                            </label>
+                            <label class="muscle-radio">
+                                <input type="radio" name="modal-muscle" value="arms" />
+                                <span class="radio-label tag-arms">手臂</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" id="modal-cancel">取消</button>
-                <button class="btn btn-primary" id="modal-confirm">確認新增</button>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="modal-cancel">取消</button>
+                    <button class="btn btn-primary" id="modal-confirm">確認新增</button>
+                </div>
             </div>
         </div>
-    </div>
 
-    <!-- Celebration Canvas -->
-    <div class="celebration-container" id="celebration-canvas"></div>
+        <!-- Celebration Canvas -->
+        <div class="celebration-container" id="celebration-canvas"></div>
 
-    <script src="app.js"></script>
-</body>
+        <script src="app.js"></script>
+    </body>
 </html>

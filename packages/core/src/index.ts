@@ -2,10 +2,18 @@
 
 // 1. 導出本地資料庫讀寫服務
 export {
-  initDatabase,
-  saveDatabase,
-  getWorkoutByDate,
-  saveWorkout,
-  getExercisesLibrary,
-  addCustomExercise
-} from './db/dbService';
+    initDatabase,
+    saveDatabase,
+    getWorkoutByDate,
+    saveWorkout,
+    getExercisesLibrary,
+    addCustomExercise,
+    getAllWorkouts
+} from './db/dbService'
+
+// 2. 導出 Google Drive 雲端備份服務
+export {
+    searchBackupFile,
+    uploadBackup,
+    downloadBackup
+} from './drive'

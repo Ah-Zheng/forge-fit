@@ -2,32 +2,36 @@
 
 :root {
     /* Color Palette */
-    --bg-primary: #080A10;
-    --bg-secondary: #0D111E;
-    --bg-sidebar: #05070B;
+    --bg-primary: #080a10;
+    --bg-secondary: #0d111e;
+    --bg-sidebar: #05070b;
     --bg-card: rgba(18, 22, 36, 0.65);
     --border-glow: rgba(0, 240, 255, 0.15);
     --border-soft: rgba(255, 255, 255, 0.05);
-    
+
     /* Neon Colors */
-    --color-cyan: #00F0FF;
-    --color-blue: #2F80ED;
-    --color-purple: #9B5DE5;
-    --color-magenta: #F15BB5;
-    --color-yellow: #FEE440;
-    --color-danger: #FF4A4A;
-    --color-success: #00FF87;
-    
+    --color-cyan: #00f0ff;
+    --color-blue: #2f80ed;
+    --color-purple: #9b5de5;
+    --color-magenta: #f15bb5;
+    --color-yellow: #fee440;
+    --color-danger: #ff4a4a;
+    --color-success: #00ff87;
+
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, #2F80ED 0%, #00F0FF 100%);
-    --gradient-glow: linear-gradient(135deg, rgba(47, 128, 237, 0.2) 0%, rgba(0, 240, 255, 0.2) 100%);
+    --gradient-primary: linear-gradient(135deg, #2f80ed 0%, #00f0ff 100%);
+    --gradient-glow: linear-gradient(
+        135deg,
+        rgba(47, 128, 237, 0.2) 0%,
+        rgba(0, 240, 255, 0.2) 100%
+    );
     --gradient-card: linear-gradient(180deg, rgba(20, 26, 46, 0.8) 0%, rgba(13, 17, 30, 0.8) 100%);
 
     /* Typography Colors */
-    --text-main: #E2E8F0;
-    --text-sub: #94A3B8;
-    --text-muted: #64748B;
-    
+    --text-main: #e2e8f0;
+    --text-sub: #94a3b8;
+    --text-muted: #64748b;
+
     /* Transition & Shadows */
     --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     --shadow-neon: 0 0 15px rgba(0, 240, 255, 0.25);
@@ -45,7 +49,14 @@
 body {
     background-color: var(--bg-primary);
     color: var(--text-main);
-    font-family: 'Outfit', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family:
+        'Outfit',
+        'Noto Sans TC',
+        -apple-system,
+        BlinkMacSystemFont,
+        'Segoe UI',
+        Roboto,
+        sans-serif;
     min-height: 100vh;
     overflow-x: hidden;
     letter-spacing: 0.02em;
@@ -68,7 +79,7 @@ body {
     background: var(--bg-primary);
 }
 ::-webkit-scrollbar-thumb {
-    background: #1E293B;
+    background: #1e293b;
     border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -117,7 +128,7 @@ body {
     font-size: 1.5rem;
     font-weight: 800;
     letter-spacing: 0.08em;
-    background: linear-gradient(135deg, #FFF 60%, var(--color-cyan) 100%);
+    background: linear-gradient(135deg, #fff 60%, var(--color-cyan) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
@@ -160,8 +171,9 @@ body {
     transition: var(--transition);
 }
 
-.menu-item:hover, .menu-item.active {
-    color: #FFF;
+.menu-item:hover,
+.menu-item.active {
+    color: #fff;
     background: rgba(47, 128, 237, 0.08);
     border-color: rgba(47, 128, 237, 0.2);
 }
@@ -169,7 +181,7 @@ body {
 .menu-item.active {
     background: var(--gradient-glow);
     border-color: rgba(0, 240, 255, 0.3);
-    color: #FFF;
+    color: #fff;
     box-shadow: 0 0 15px rgba(0, 240, 255, 0.08);
 }
 
@@ -239,7 +251,7 @@ body {
     font-weight: 800;
     letter-spacing: 0.05em;
     margin-bottom: 0.5rem;
-    color: #FFF;
+    color: #fff;
 }
 
 .mobile-brand span span {
@@ -249,7 +261,7 @@ body {
 .header-title {
     font-size: 1.85rem;
     font-weight: 700;
-    color: #FFF;
+    color: #fff;
 }
 
 .header-subtitle {
@@ -263,7 +275,9 @@ body {
     display: none;
     opacity: 0;
     transform: translateY(10px);
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transition:
+        opacity 0.3s ease,
+        transform 0.3s ease;
 }
 
 .app-page.active {
@@ -289,7 +303,7 @@ body {
 
 .btn-primary {
     background: var(--gradient-primary);
-    color: #080A10;
+    color: #080a10;
     box-shadow: var(--shadow-neon);
 }
 
@@ -307,7 +321,7 @@ body {
 .btn-secondary:hover {
     background: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.2);
-    color: #FFF;
+    color: #fff;
 }
 
 .btn-sm {
@@ -411,7 +425,7 @@ body {
 .stat-value {
     font-size: 1.25rem;
     font-weight: 800;
-    color: #FFF;
+    color: #fff;
 }
 
 .stat-value .unit {
@@ -453,11 +467,15 @@ body {
 .card-title-group h2 {
     font-size: 1.05rem;
     font-weight: 700;
-    color: #FFF;
+    color: #fff;
 }
 
-.text-cyan { color: var(--color-cyan); }
-.text-blue { color: var(--color-blue); }
+.text-cyan {
+    color: var(--color-cyan);
+}
+.text-blue {
+    color: var(--color-blue);
+}
 
 /* Workout Status Badge */
 .workout-status-badge {
@@ -520,7 +538,7 @@ body {
 .exercise-name {
     font-size: 0.95rem;
     font-weight: 700;
-    color: #FFF;
+    color: #fff;
 }
 
 .exercise-muscle-tag {
@@ -533,11 +551,31 @@ body {
 }
 
 /* Muscle Tags */
-.tag-chest { background: rgba(47, 128, 237, 0.15); color: #2F80ED; border: 1px solid rgba(47, 128, 237, 0.25); }
-.tag-back { background: rgba(0, 240, 255, 0.15); color: #00F0FF; border: 1px solid rgba(0, 240, 255, 0.25); }
-.tag-legs { background: rgba(155, 93, 229, 0.15); color: #9B5DE5; border: 1px solid rgba(155, 93, 229, 0.25); }
-.tag-shoulders { background: rgba(241, 91, 181, 0.15); color: #F15BB5; border: 1px solid rgba(241, 91, 181, 0.25); }
-.tag-arms { background: rgba(254, 228, 64, 0.15); color: #FEE440; border: 1px solid rgba(254, 228, 64, 0.25); }
+.tag-chest {
+    background: rgba(47, 128, 237, 0.15);
+    color: #2f80ed;
+    border: 1px solid rgba(47, 128, 237, 0.25);
+}
+.tag-back {
+    background: rgba(0, 240, 255, 0.15);
+    color: #00f0ff;
+    border: 1px solid rgba(0, 240, 255, 0.25);
+}
+.tag-legs {
+    background: rgba(155, 93, 229, 0.15);
+    color: #9b5de5;
+    border: 1px solid rgba(155, 93, 229, 0.25);
+}
+.tag-shoulders {
+    background: rgba(241, 91, 181, 0.15);
+    color: #f15bb5;
+    border: 1px solid rgba(241, 91, 181, 0.25);
+}
+.tag-arms {
+    background: rgba(254, 228, 64, 0.15);
+    color: #fee440;
+    border: 1px solid rgba(254, 228, 64, 0.25);
+}
 
 /* Set Rows Layout */
 .set-rows-container {
@@ -547,7 +585,8 @@ body {
     margin-bottom: 0.75rem;
 }
 
-.set-header-row, .set-row {
+.set-header-row,
+.set-row {
     display: grid;
     grid-template-columns: 0.4fr 1.6fr 1.6fr 0.6fr 0.4fr;
     align-items: center;
@@ -614,7 +653,7 @@ body {
 
 .btn-step:active {
     background: rgba(0, 240, 255, 0.2);
-    color: #FFF;
+    color: #fff;
 }
 
 .stepper-input input {
@@ -624,7 +663,7 @@ body {
     background: transparent;
     border: none;
     outline: none;
-    color: #FFF;
+    color: #fff;
     font-size: 0.85rem;
     font-weight: 700;
     text-align: center;
@@ -672,7 +711,7 @@ body {
 }
 
 .checkmark:after {
-    content: "";
+    content: '';
     position: absolute;
     display: none;
 }
@@ -686,7 +725,7 @@ body {
     top: 4px;
     width: 5px;
     height: 10px;
-    border: solid #080A10;
+    border: solid #080a10;
     border-width: 0 2px 2px 0;
     transform: rotate(45deg);
 }
@@ -755,7 +794,7 @@ body {
     border: 1px solid var(--border-soft);
     border-radius: 10px;
     padding: 0.65rem 1rem 0.65rem 2.25rem;
-    color: #FFF;
+    color: #fff;
     outline: none;
     font-size: 0.8rem;
     transition: var(--transition);
@@ -787,7 +826,7 @@ body {
 .item-name {
     font-size: 0.85rem;
     font-weight: 600;
-    color: #FFF;
+    color: #fff;
 }
 
 .badge {
@@ -856,7 +895,7 @@ body {
 }
 
 .mobile-nav-item:active {
-    color: #FFF;
+    color: #fff;
 }
 
 .mobile-nav-item.active {
@@ -897,7 +936,7 @@ body {
     width: 92%;
     max-width: 400px;
     padding: 1.5rem;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
     transform: scale(0.9);
     transition: var(--transition);
 }
@@ -916,7 +955,7 @@ body {
 .modal-header h2 {
     font-size: 1.1rem;
     font-weight: 700;
-    color: #FFF;
+    color: #fff;
 }
 
 .form-group {
@@ -931,19 +970,19 @@ body {
     font-weight: 600;
 }
 
-.form-group input[type="text"] {
+.form-group input[type='text'] {
     width: 100%;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--border-soft);
     border-radius: 8px;
     padding: 0.65rem 0.85rem;
-    color: #FFF;
+    color: #fff;
     outline: none;
     font-size: 0.85rem;
     transition: var(--transition);
 }
 
-.form-group input[type="text"]:focus {
+.form-group input[type='text']:focus {
     border-color: var(--color-cyan);
 }
 
@@ -976,8 +1015,8 @@ body {
 
 .muscle-radio input:checked + .radio-label {
     filter: brightness(1.25);
-    border-color: rgba(255,255,255,0.3);
-    box-shadow: 0 0 10px rgba(255,255,255,0.05);
+    border-color: rgba(255, 255, 255, 0.3);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
 }
 
 .modal-footer {
@@ -989,12 +1028,18 @@ body {
 
 /* Animations */
 @keyframes pulseGlow {
-    0%, 100% { filter: drop-shadow(0 0 2px var(--color-cyan)); }
-    50% { filter: drop-shadow(0 0 8px var(--color-cyan)); }
+    0%,
+    100% {
+        filter: drop-shadow(0 0 2px var(--color-cyan));
+    }
+    50% {
+        filter: drop-shadow(0 0 8px var(--color-cyan));
+    }
 }
 
 @keyframes breatheGlow {
-    0%, 100% {
+    0%,
+    100% {
         box-shadow: 0 0 4px rgba(0, 255, 135, 0.1);
         border-color: rgba(0, 255, 135, 0.15);
     }
@@ -1009,11 +1054,11 @@ body {
     .app-sidebar {
         display: none; /* Entirely hide desktop sidebar */
     }
-    
+
     .mobile-nav-bar {
         display: grid; /* Render mobile bottom nav bar */
     }
-    
+
     .mobile-brand {
         display: flex; /* Render mobile logo in header */
         align-items: center;
@@ -1021,7 +1066,7 @@ body {
         font-size: 1.1rem;
         margin-bottom: 0 !important; /* 水平排列，取消下方邊距 */
     }
-    
+
     .header-title-section {
         display: flex;
         align-items: center;
@@ -1035,7 +1080,7 @@ body {
         align-items: flex-end; /* 💡 標題與日期靠右對齊，精緻優雅 */
         text-align: right;
     }
-    
+
     .app-header {
         position: fixed;
         top: 0;
@@ -1047,75 +1092,78 @@ body {
         backdrop-filter: blur(20px);
         border-bottom: 1px solid var(--border-soft);
         padding: 0.75rem 1rem;
-        padding-top: calc(0.75rem + env(safe-area-inset-top)); /* 💡 與文字水平排列後，即便包含 safe-area 也極為精巧舒適，絕無截斷問題 */
+        padding-top: calc(
+            0.75rem + env(safe-area-inset-top)
+        ); /* 💡 與文字水平排列後，即便包含 safe-area 也極為精巧舒適，絕無截斷問題 */
         margin-bottom: 0 !important;
         z-index: 40;
     }
-    
+
     .app-main {
         padding: calc(84px + env(safe-area-inset-top)) 1rem 5.5rem 1rem; /* 💡 配合矮 Header (60px + safe) 動態調整，在所有手機上永久精準維持 24px 美觀下緣呼吸間距 */
     }
-    
+
     .header-title {
         font-size: 1.15rem; /* 💡 手機版標題尺寸微調得更加精簡精緻 */
         font-weight: 700;
         margin: 0;
         line-height: 1.2;
     }
-    
+
     .header-subtitle {
         font-size: 0.7rem; /* 💡 日期字型微調，視覺層次分明 */
         margin-top: 0.15rem;
     }
-    
+
     .btn-circle-add {
         width: 40px;
         height: 40px;
     }
-    
+
     .stats-card-wrapper {
         grid-template-columns: repeat(2, 1fr);
         gap: 0.75rem;
     }
-    
+
     .stats-card-wrapper > .stat-card:first-child {
         grid-column: span 2;
     }
-    
+
     .stat-card {
         padding: 0.85rem 1rem;
         gap: 0.75rem;
         border-radius: 12px;
     }
-    
+
     .stat-icon-box {
         width: 32px;
         height: 32px;
         border-radius: 8px;
     }
-    
+
     .stat-value {
         font-size: 1.15rem;
     }
-    
+
     .stat-label {
         font-size: 0.72rem;
     }
-    
+
     .glass-card {
         padding: 1rem;
         border-radius: 14px;
     }
-    
-    .set-header-row, .set-row {
+
+    .set-header-row,
+    .set-row {
         gap: 0.4rem;
         grid-template-columns: 0.4fr 1.8fr 1.8fr 0.6fr 0.5fr;
     }
-    
+
     .stepper-input {
         height: 36px;
     }
-    
+
     .btn-step {
         width: 26px;
         font-size: 1rem;
@@ -1143,6 +1191,12 @@ body {
 }
 
 @keyframes particleFall {
-    0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
-    100% { transform: translateY(105vh) rotate(720deg); opacity: 0; }
+    0% {
+        transform: translateY(-20px) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(105vh) rotate(720deg);
+        opacity: 0;
+    }
 }

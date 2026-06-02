@@ -1,19 +1,25 @@
 {
-  "name": "forge-fit-monorepo",
-  "private": true,
-  "version": "1.0.0",
-  "description": "ForgeFit Monorepo Project Workspace",
-  "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev",
-    "lint": "turbo run lint"
-  },
-  "devDependencies": {
-    "turbo": "^1.13.0"
-  },
-  "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=8.0.0"
-  },
-  "packageManager": "pnpm@8.15.4"
+    "name": "forge-fit-monorepo",
+    "private": true,
+    "version": "1.0.0",
+    "description": "ForgeFit Monorepo Project Workspace",
+    "scripts": {
+        "build": "turbo run build",
+        "dev": "turbo run dev",
+        "lint": "turbo run lint"
+    },
+    "devDependencies": {
+        "eslint": "^9.18.0",
+        "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-prettier": "^5.5.6",
+        "eslint-plugin-vue": "^10.9.1",
+        "prettier": "^3.0.0",
+        "turbo": "^1.13.0",
+        "typescript-eslint": "^8.60.1"
+    },
+    "engines": {
+        "node": ">=18.0.0",
+        "pnpm": ">=8.0.0"
+    },
+    "packageManager": "pnpm@8.15.4"
 }
