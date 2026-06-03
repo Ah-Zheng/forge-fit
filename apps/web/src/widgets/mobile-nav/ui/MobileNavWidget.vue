@@ -1,21 +1,19 @@
 <script setup lang="ts">
 import { LayoutDashboard, ClipboardList, BookOpen, Settings, Plus, Compass } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
+import { useWorkoutStore } from '../../../entities/workout'
 
-// 💡 使用 Vue 3.4+ 高雅的雙向綁定 defineModel
-const currentTab = defineModel<string>('currentTab', { required: true })
-
-// 💡 定義自定義事件，傳遞加號點擊的訊號給 App.vue
-const emit = defineEmits<{
-    (e: 'clickAdd'): void
-}>()
+const route = useRoute()
+const router = useRouter()
+const store = useWorkoutStore()
 
 const handleCenterClick = () => {
-    if (currentTab.value === 'logger') {
+    if (route.path === '/logger') {
         // 當前就在日誌頁面時，點選中心按鈕觸作「就地新增訓練項目」
-        emit('clickAdd')
+        store.isLoggerDrawerOpen = true
     } else {
         // 在其他頁面時，點選中心按鈕直接導向切換至日誌頁面
-        currentTab.value = 'logger'
+        router.push('/logger')
     }
 }
 </script>
@@ -23,14 +21,14 @@ const handleCenterClick = () => {
 <template>
     <nav class="mobile-nav-bar">
         <!-- 1. 今日看板 (最左邊) -->
-        <button
+        <RouterLink
+            to="/dashboard"
             class="mobile-nav-item"
-            :class="{ active: currentTab === 'dashboard' }"
-            @click="currentTab = 'dashboard'"
+            active-class="active"
         >
             <LayoutDashboard :size="18" />
             <span>看板</span>
-        </button>
+        </RouterLink>
         
         <!-- 2. 💡 暫時佔位按鈕 (左邊數來第二個，無實際功能，以半透明度與指針指南針呈現極佳期待感) -->
         <button
@@ -48,31 +46,31 @@ const handleCenterClick = () => {
             <button
                 class="mobile-nav-center-btn"
                 @click="handleCenterClick"
-                :title="currentTab === 'logger' ? '就地新增重訓動作' : '快速切換至重量日誌'"
+                :title="route.path === '/logger' ? '就地新增重訓動作' : '快速切換至重量日誌'"
             >
-                <Plus v-if="currentTab === 'logger'" :size="24" />
+                <Plus v-if="route.path === '/logger'" :size="24" />
                 <ClipboardList v-else :size="20" />
             </button>
         </div>
         
         <!-- 4. 器材百科 (右邊數來第二個) -->
-        <button
+        <RouterLink
+            to="/library"
             class="mobile-nav-item"
-            :class="{ active: currentTab === 'library' }"
-            @click="currentTab = 'library'"
+            active-class="active"
         >
             <BookOpen :size="18" />
             <span>百科</span>
-        </button>
+        </RouterLink>
         
         <!-- 5. 系統設定 (最右邊) -->
-        <button
+        <RouterLink
+            to="/settings"
             class="mobile-nav-item"
-            :class="{ active: currentTab === 'settings' }"
-            @click="currentTab = 'settings'"
+            active-class="active"
         >
             <Settings :size="18" />
             <span>設定</span>
-        </button>
+        </RouterLink>
     </nav>
 </template>

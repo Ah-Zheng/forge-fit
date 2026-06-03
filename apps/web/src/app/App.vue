@@ -1,162 +1,45 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-// 💡 導入我們在 packages/core 中實作的型別安全本機資料庫服務
-import { initDatabase, getWorkoutByDate, saveWorkout, getExercisesLibrary } from '@forge-fit/core'
-// 💡 導入共享的 TypeScript 型別定義
-import type { WorkoutSession, ExerciseDef } from '@forge-fit/types'
-
-import { DashboardPage } from '../pages/dashboard'
-import { LoggerPage } from '../pages/logger'
-import { LibraryPage } from '../pages/library'
-import { SettingsPage } from '../pages/settings'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+// 💡 導入我們手寫的 Pinia Workout Store
+import { useWorkoutStore } from '../entities/workout'
 import { Dumbbell, Menu, X, LayoutDashboard, ClipboardList, BookOpen, Settings } from 'lucide-vue-next'
 import { SidebarWidget } from '../widgets/sidebar'
 import { MobileNavWidget } from '../widgets/mobile-nav'
 import { useMediaQuery } from '../shared/lib/useMediaQuery'
 
-// 💡 取得雙端 JS 監聽狀態，達成 100% 銷毀看不見的 DOM 節點
+// 💡 取得雙端 JS 監聽狀態，達成 100% 銷毀看不見 the DOM 節點
 const isMobile = useMediaQuery('(max-width: 768px)')
 
 // 💡 控制手機版「側邊漢堡抽屜 (Mobile Drawer)」的開啟狀態
 const isMobileDrawerOpen = ref(false)
 
-// 1. 初始化資料庫並讀取今日日期字串 "YYYY-MM-DD"
-const getTodayDateString = () => {
-    const now = new Date()
-    const yyyy = now.getFullYear()
-    const mm = String(now.getMonth() + 1).padStart(2, '0')
-    const dd = String(now.getDate()).padStart(2, '0')
-    return `${yyyy}-${mm}-${dd}`
-}
+// 💡 引入 Pinia 全局狀態
+const store = useWorkoutStore()
 
-const todayStr = ref('')
-const workoutDate = ref('') // 💡 當前正在編輯/補記的重量日誌日期，預設為今天
+const route = useRoute()
 const currentDateStr = ref('')
-// 當前選取/正在編輯的重訓日誌狀態 (Ref)
-const todaySession = ref<WorkoutSession>({ date: '', exercises: [], duration: 0 })
-// 百科動作庫
-const exercisesLibrary = ref<ExerciseDef[]>([])
 
-// 初始化載入
-const initAppDatabase = () => {
-    // 初始化 LocalStorage 結構並讀取預設动作庫
-    initDatabase()
-
-    todayStr.value = getTodayDateString()
-    workoutDate.value = todayStr.value
-
-    // 載入當前編輯日期的重訓紀錄日誌
-    todaySession.value = getWorkoutByDate(workoutDate.value)
-
-    // 載入動作庫清單
-    exercisesLibrary.value = getExercisesLibrary()
+onMounted(() => {
+    // 💡 初始化資料庫載入與狀態讀取
+    store.initStore()
 
     // 格式化今日的標題日期字串 (例如 "2026年6月1日 星期一")
     const now = new Date()
     const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
     currentDateStr.value = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日 ${weekdays[now.getDay()]}`
-}
-
-onMounted(() => {
-    initAppDatabase()
 })
 
-// 💡 當編輯的日期切換時，自動重新從本機載入該日期的 session
-watch(workoutDate, (newDate) => {
-    if (newDate) {
-        todaySession.value = getWorkoutByDate(newDate)
-    }
-})
-
-// 2. ⚡ 神級響應式設計：深層監聽 (Deep Watch) 日誌狀態
-// 當日誌中任何「重量、次數、完成狀態或新增組數」發生變更時，自動微秒級存檔到 LocalStorage 對應日期中！
-watch(
-    todaySession,
-    newSession => {
-        if (newSession.date) {
-            saveWorkout(newSession.date, newSession)
-        }
-    },
-    { deep: true }
-)
-
-// 3. 一鍵快加動作的處理邏輯 (供百科頁面調用)
-const handleAddExercise = (exercise: ExerciseDef) => {
-    // 檢查今日日誌中是否已存在此動作
-    const exists = todaySession.value.exercises.some(ex => ex.exerciseId === exercise.id)
-
-    if (!exists) {
-        // 💡 智慧數據連動：優先讀取常用動作庫中所紀錄的可承受重量與次數，若無則以 40kg / 10下作為 fallback 預設第一組
-        const defaultWeight = typeof exercise.targetWeight === 'number' ? exercise.targetWeight : 40
-        const defaultReps = typeof exercise.targetReps === 'number' ? exercise.targetReps : 10
-        
-        todaySession.value.exercises.push({
-            exerciseId: exercise.id,
-            name: exercise.name,
-            muscle: exercise.muscle,
-            sets: [{ weight: defaultWeight, reps: defaultReps, completed: false }]
-        })
-    }
-
-    // 自動導航跳轉至重量紀錄分頁
-    currentTab.value = 'logger'
-}
-
-// 4. 頁面與日期切換連動控制
-const currentTab = ref('dashboard')
-
-// 💡 宣告中央大 + 按鈕一鍵開啟挑選抽屜的信號 Ref
-const openDrawerSignal = ref(0)
-
-const handleCenterAdd = () => {
-    currentTab.value = 'logger'
-    openDrawerSignal.value++
-}
-
-const handleSwitchTab = (tab: string, date?: string) => {
-    currentTab.value = tab
-    if (date) {
-        workoutDate.value = date
-    }
-}
-
-// 動態解析當前掛載的分頁組件 (已徹底將 History 融合至日誌中心，在此移除 HistoryPage 節點)
-const activePage = computed(() => {
-    switch (currentTab.value) {
-        case 'dashboard':
-            return DashboardPage
-        case 'logger':
-            return LoggerPage
-        case 'library':
-            return LibraryPage
-        case 'settings':
-            return SettingsPage
-        default:
-            return DashboardPage
-    }
-})
-
-// 依據分頁動態產生標題 (已升級 Logger 頁面為極具質感的「重訓時光日誌」)
+// 依據當前路由的 meta title 動態產生標題
 const pageTitle = computed(() => {
-    switch (currentTab.value) {
-        case 'dashboard':
-            return '今日訓練看板'
-        case 'logger':
-            return '重訓時光日誌'
-        case 'library':
-            return '常用器材動作庫'
-        case 'settings':
-            return '系統設定與備份'
-        default:
-            return '今日訓練看板'
-    }
+    return (route.meta?.title as string) || '今日訓練看板'
 })
 </script>
 
 <template>
     <div class="app-container">
         <!-- 🖥️ 桌上版側邊選單 (A+B 方案：只在非行動端下渲染，徹底銷毀 DOM 冗餘) -->
-        <SidebarWidget v-if="!isMobile" v-model:currentTab="currentTab" />
+        <SidebarWidget v-if="!isMobile" />
 
         <!-- 📱 行動版主工作區 -->
         <main class="app-main">
@@ -184,27 +67,16 @@ const pageTitle = computed(() => {
                 </div>
             </header>
 
-            <!-- 💡 將今日日誌 session 與動作庫、添加方法以 Props 注入當前分頁 -->
-            <KeepAlive>
-                <component
-                    :is="activePage"
-                    :session="todaySession"
-                    :exercises-library="exercisesLibrary"
-                    :open-drawer-signal="openDrawerSignal"
-                    @add-exercise="handleAddExercise"
-                    @switch-tab="handleSwitchTab"
-                    @change-date="workoutDate = $event"
-                    @refresh-library="exercisesLibrary = getExercisesLibrary()"
-                />
-            </KeepAlive>
+            <!-- 💡 使用 vue-router 渲染頁面，並搭配 KeepAlive 維持頁面快取 -->
+            <router-view v-slot="{ Component }">
+                <keep-alive>
+                    <component :is="Component" />
+                </keep-alive>
+            </router-view>
         </main>
 
         <!-- 📱 PWA 行動版底部導覽列 (A+B 方案：只在行動端下渲染，徹底銷毀 DOM 冗餘) -->
-        <MobileNavWidget 
-            v-if="isMobile" 
-            v-model:currentTab="currentTab" 
-            @click-add="handleCenterAdd"
-        />
+        <MobileNavWidget v-if="isMobile" />
     </div>
 
     <!-- 💡 手機版毛玻璃科技風「側邊抽屜導航」 (與行動端側邊欄邏輯完美雙修) -->
@@ -235,39 +107,43 @@ const pageTitle = computed(() => {
                 
                 <!-- 抽屜選單連結 (與桌上版側邊選單完美對應) -->
                 <nav class="drawer-menu">
-                    <button 
-                        @click="currentTab = 'dashboard'; isMobileDrawerOpen = false"
+                    <RouterLink 
+                        to="/dashboard"
+                        @click="isMobileDrawerOpen = false"
                         class="drawer-item" 
-                        :class="{ active: currentTab === 'dashboard' }"
+                        active-class="active"
                     >
                         <LayoutDashboard :size="18" />
                         <span>今日訓練看板</span>
-                    </button>
-                    <button 
-                        @click="currentTab = 'logger'; isMobileDrawerOpen = false"
+                    </RouterLink>
+                    <RouterLink 
+                        to="/logger"
+                        @click="isMobileDrawerOpen = false"
                         class="drawer-item" 
-                        :class="{ active: currentTab === 'logger' }"
+                        active-class="active"
                     >
                         <ClipboardList :size="18" />
                         <span>今日重量日誌</span>
-                    </button>
+                    </RouterLink>
 
-                    <button 
-                        @click="currentTab = 'library'; isMobileDrawerOpen = false"
+                    <RouterLink 
+                        to="/library"
+                        @click="isMobileDrawerOpen = false"
                         class="drawer-item" 
-                        :class="{ active: currentTab === 'library' }"
+                        active-class="active"
                     >
                         <BookOpen :size="18" />
                         <span>常用器材百科</span>
-                    </button>
-                    <button 
-                        @click="currentTab = 'settings'; isMobileDrawerOpen = false"
+                    </RouterLink>
+                    <RouterLink 
+                        to="/settings"
+                        @click="isMobileDrawerOpen = false"
                         class="drawer-item" 
-                        :class="{ active: currentTab === 'settings' }"
+                        active-class="active"
                     >
                         <Settings :size="18" />
                         <span>系統設定備份</span>
-                    </button>
+                    </RouterLink>
                 </nav>
                 
                 <!-- 抽屜底部用戶欄 -->

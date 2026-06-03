@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useWorkoutStore } from '../../../entities/workout'
 import {
     Cloud,
     CloudLightning,
@@ -7,16 +9,11 @@ import {
     UserCheck,
     LogOut,
     AlertTriangle,
-    Trash2,
     ShieldCheck,
     Key,
     Info,
     CheckCircle2
 } from 'lucide-vue-next'
-/** 💡 導入型別定義 */
-import type { WorkoutDatabase } from '@forge-fit/types'
-/** 💡 導入 core 資料庫與雲端備份 API */
-import { initDatabase, saveDatabase, uploadBackup, downloadBackup } from '@forge-fit/core'
 /** 💡 導入我們手寫的高性能 Canvas 霓虹粒子引擎 */
 import { NeonConfetti } from '../../../shared/lib/confetti'
 
@@ -33,23 +30,17 @@ const storage: Storage =
             key: () => null
         }
 
-/** 雲端硬碟授權所得的短效 access token */
-const accessToken = ref<string | null>(null)
-
-/** 當前是否已綁定 Google 雲端帳號 */
-const isLinked = ref(false)
-
-/** 已連結的 Google 帳號信箱 */
-const userEmail = ref<string>('')
-
-/** 上次成功同步的時間戳記文字 */
-const lastSyncedTime = ref<string>('尚未同步')
-
-/** 是否正在上傳同步備份中 */
-const isSyncing = ref(false)
-
-/** 是否正在下載備份還原中 */
-const isRestoring = ref(false)
+// 💡 引入 Pinia 全局狀態
+const store = useWorkoutStore()
+const {
+    accessToken,
+    isLinked,
+    userEmail,
+    lastSyncedTime,
+    isSyncing,
+    isRestoring,
+    isMockMode
+} = storeToRefs(store)
 
 /** 💡 從 Vite 環境變數動態載入 Google Client ID，避免憑證硬編碼暴露在程式碼中，符合現代 Web 安全防禦工程實踐！ */
 const DEFAULT_CLIENT_ID = ((import.meta as any).env?.VITE_GOOGLE_CLIENT_ID as string) || ''
@@ -63,20 +54,32 @@ const isSavedKey = ref(false)
 /** Google Identity Services (GIS) 憑證登入實例 */
 let tokenClient: any = null
 
-/** 模擬沙盒開發模式 (預設 false，若偵測為非本機且無自訂金鑰則會降級為 true) */
-const isMockMode = ref(false)
 
-/** 危險操作區確認 Modal 顯示狀態 */
-const showResetModal = ref(false)
-
-/** 使用者輸入的重置確認安全字元 (大寫 "RESET") */
-const resetConfirmInput = ref('')
 
 /** Canvas 霓虹發光啞鈴粒子發射器畫布 DOM 節點 */
 const confettiCanvas = ref<HTMLCanvasElement | null>(null)
 
 /** 高性能 Canvas 霓虹粒子引擎實例 */
 let confettiEngine: NeonConfetti | null = null
+
+/** 💡 畫布 active 狀態。使用 v-if 來保證平常狀態下 canvas 完全不在 DOM 中渲染，0% 機率阻擋點擊！ */
+const isCanvasActive = ref(false)
+
+const triggerCelebrate = async (count = 50) => {
+    isCanvasActive.value = true
+    await nextTick()
+    if (confettiCanvas.value) {
+        confettiEngine = new NeonConfetti(confettiCanvas.value)
+        confettiEngine.burst(count)
+    }
+    setTimeout(() => {
+        isCanvasActive.value = false
+        if (confettiEngine) {
+            confettiEngine.destroy()
+            confettiEngine = null
+        }
+    }, 3000)
+}
 
 /** 💡 判斷是否為本機開發網域 (例如 localhost、127.0.0.1、區域網路 IP) */
 const isLocalhost = computed(() => {
@@ -99,33 +102,14 @@ const connectBtnText = computed(() => {
 })
 
 onMounted(() => {
-    if (confettiCanvas.value) {
-        confettiEngine = new NeonConfetti(confettiCanvas.value)
-    }
-
-    /** 💡 檢查本地是否已經有 cached google token 與用戶資料 */
-    const cachedToken = storage.getItem('forge-fit-google-token')
-    const cachedEmail = storage.getItem('forge-fit-google-email')
-    const cachedSync = storage.getItem('forge-fit-google-last-sync')
+    // 💡 初始化 Store
+    store.initStore()
 
     /** 💡 檢查是否有自訂的真實 Google Client ID */
     const savedCustomKey = storage.getItem('forge-fit-custom-client-id')
     if (savedCustomKey) {
         customClientId.value = savedCustomKey
         isSavedKey.value = true
-    }
-
-    /** 💡 載入已快取的綁定狀態 */
-    if (cachedToken) {
-        accessToken.value = cachedToken
-        isLinked.value = true
-        userEmail.value = cachedEmail || 'forge_fit_warrior@gmail.com'
-        lastSyncedTime.value = cachedSync || '尚未同步'
-        // 若 Token 為 mock- 開頭，或者是外部網域且沒有金鑰，則為沙盒模式
-        isMockMode.value = cachedToken.startsWith('mock-') || !canUseRealOAuth.value
-    } else {
-        // 預設若不能使用真實 OAuth 則標記為模擬模式
-        isMockMode.value = !canUseRealOAuth.value
     }
 
     // 動態加載 Google GIS Client 官方腳本
@@ -135,6 +119,7 @@ onMounted(() => {
 onUnmounted(() => {
     if (confettiEngine) {
         confettiEngine.destroy()
+        confettiEngine = null
     }
 })
 
@@ -175,7 +160,7 @@ const initGoogleOAuth = () => {
     try {
         tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
             client_id: activeClientId,
-            scope: 'https://www.googleapis.com/auth/drive.appdata',
+            scope: 'https://www.googleapis.com/auth/drive.appdata email profile openid',
             callback: async (response: any) => {
                 if (response.error) {
                     console.error('Google OAuth 授權出錯:', response.error)
@@ -183,10 +168,7 @@ const initGoogleOAuth = () => {
                     return
                 }
 
-                accessToken.value = response.access_token
-                isLinked.value = true
-                isMockMode.value = false
-
+                let email = 'google_warrior@gmail.com'
                 // 真實連結時，發起一次輕量 API 取得用戶真實信箱
                 try {
                     const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
@@ -194,18 +176,16 @@ const initGoogleOAuth = () => {
                     })
                     if (userRes.ok) {
                         const userData = await userRes.json()
-                        userEmail.value = userData.email || 'google_warrior@gmail.com'
-                    } else {
-                        userEmail.value = 'google_warrior@gmail.com'
+                        email = userData.email || 'google_warrior@gmail.com'
                     }
-                } catch {
-                    userEmail.value = 'google_warrior@gmail.com'
+                } catch (err) {
+                    console.error('獲取 Google 用戶信箱失敗:', err)
                 }
 
-                storage.setItem('forge-fit-google-token', response.access_token)
-                storage.setItem('forge-fit-google-email', userEmail.value)
+                // 💡 使用 store.setGoogleAuth 統一管理
+                store.setGoogleAuth(response.access_token, email)
 
-                if (confettiEngine) confettiEngine.burst(50)
+                triggerCelebrate(50)
                 alert('🟢 恭喜！真實 Google 帳號成功綁定！現已開啟 100% 真實雲端硬碟備份還原功能。')
             }
         })
@@ -235,7 +215,7 @@ const handleSaveClientId = () => {
     // 強制重啟並綁定真實的 Google GIS
     initGoogleOAuth()
 
-    if (confettiEngine) confettiEngine.burst(40)
+    triggerCelebrate(40)
     alert(
         '🔑 真實憑證金鑰已儲存並成功生效！\n現在點選「連結真實 Google 帳號」將會拉起 100% 真實登入授權！'
     )
@@ -246,7 +226,7 @@ const handleSaveClientId = () => {
  */
 const handleClearClientId = () => {
     if (confirm('確定要清除自訂金鑰並斷開連結嗎？這會將專案還原回模擬沙盒測試狀態。')) {
-        handleDisconnect()
+        handleDisconnect(false)
         storage.removeItem('forge-fit-custom-client-id')
         customClientId.value = ''
         isSavedKey.value = false
@@ -282,15 +262,12 @@ const handleConnectGoogle = () => {
  */
 const startSandboxMode = () => {
     const mockToken = `mock-token-${Date.now()}`
-    accessToken.value = mockToken
-    isLinked.value = true
+    
+    // 💡 使用 store.setGoogleAuth 統一管理
+    store.setGoogleAuth(mockToken, 'forge_fit_sandbox@gmail.com')
     isMockMode.value = true
-    userEmail.value = 'forge_fit_sandbox@gmail.com'
 
-    storage.setItem('forge-fit-google-token', mockToken)
-    storage.setItem('forge-fit-google-email', userEmail.value)
-
-    if (confettiEngine) confettiEngine.burst(60)
+    triggerCelebrate(60)
 
     if (!isLocalhost.value && !isSavedKey.value) {
         alert(
@@ -304,18 +281,23 @@ const startSandboxMode = () => {
 }
 
 /**
- * 解除 Google 帳號綁定並清除本地快取之 Access Token 與用戶資料
+ * 解除 Google 帳號綁定並清除本地快取之 Access Token 與用戶資料 (支援二次彈窗雙軌選擇)
  */
-const handleDisconnect = () => {
-    accessToken.value = null
-    isLinked.value = false
-    userEmail.value = ''
-    lastSyncedTime.value = '尚未同步'
-    isMockMode.value = !canUseRealOAuth.value
+const handleDisconnect = (confirmRequired: boolean | any = true) => {
+    const isConfirmNeeded = confirmRequired === false ? false : true
+    if (isConfirmNeeded) {
+        if (!confirm('確定要解除 Google 雲端帳號連結嗎？')) {
+            return
+        }
 
-    storage.removeItem('forge-fit-google-token')
-    storage.removeItem('forge-fit-google-email')
-    storage.removeItem('forge-fit-google-last-sync')
+        const shouldWipeLocal = confirm(
+            '⚠️ 您要一併「清空本機的所有重訓日誌紀錄」嗎？\n\n- 點選 [確定]：將同步抹除本地日誌與雲端連結（徹底重置）。\n- 點選 [取消]：僅解除 Google 帳號連結，本地重訓日誌依舊安全保留。'
+        )
+
+        store.disconnectGoogle(shouldWipeLocal)
+    } else {
+        store.disconnectGoogle(false)
+    }
 }
 
 /**
@@ -323,42 +305,24 @@ const handleDisconnect = () => {
  */
 const handleUploadSync = async () => {
     if (!accessToken.value) return
-    isSyncing.value = true
-
     try {
-        const localDb = initDatabase()
+        const success = await store.syncUpload()
+        if (success) {
+            triggerCelebrate(80)
 
-        if (isMockMode.value) {
-            // 💡 沙盒模式模擬：延遲 1.2 秒以展現 Loading 特效，並存入 sandbox cache
-            await new Promise(resolve => setTimeout(resolve, 1200))
-            storage.setItem('forge-fit-sandbox-backup', JSON.stringify(localDb))
-        } else {
-            // 💡 100% 真實上傳：調用 core/drive API 上傳至 Google appDataFolder
-            await uploadBackup(accessToken.value, localDb)
-        }
-
-        // 更新最後同步時間
-        const now = new Date()
-        const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-        lastSyncedTime.value = timeStr
-        storage.setItem('forge-fit-google-last-sync', timeStr)
-
-        if (confettiEngine) confettiEngine.burst(80)
-
-        if (isMockMode.value) {
-            alert(
-                '💡 沙盒同步模擬成功！\n（⚠️ 注意：當前在沙盒模式下，資料僅加密暫存於本地快取，並未真正上傳至 Google 雲端硬碟！）'
-            )
-        } else {
-            alert(
-                '🎉 資料同步成功！重訓日誌已安全加密備份至您的 Google 雲端硬碟 (AppData 隱密區)。'
-            )
+            if (isMockMode.value) {
+                alert(
+                    '💡 沙盒同步模擬成功！\n（⚠️ 注意：當前在沙盒模式下，資料僅加密暫存於本地快取，並未真正上傳至 Google 雲端硬碟！）'
+                )
+            } else {
+                alert(
+                    '🎉 雲端備份成功！\n\n您的重訓歷史資料已安全備份至 Google Drive 的專屬應用程式隱密區 (AppData Folder)。\n\n💡 為了防範您不小心在 Google Drive 網頁上將備份 JSON 檔誤刪，Google 預設將此專區隱藏。雖然您在雲端硬碟網頁上看不到此檔案，但本 App 隨時可以完美為您下載還原！'
+                )
+            }
         }
     } catch (error) {
         console.error('上傳備份失敗:', error)
         alert('雲端備份同步失敗，請確認您的網路狀況或重新綁定帳號！')
-    } finally {
-        isSyncing.value = false
     }
 }
 
@@ -374,77 +338,26 @@ const handleDownloadRestore = async () => {
     )
         return
 
-    isRestoring.value = true
-
     try {
-        let restoredDb: WorkoutDatabase | null = null
+        const success = await store.syncRestore()
+        if (success) {
+            triggerCelebrate(100)
+            alert(
+                '💚 備份還原成功！本地重訓日誌已與雲端同步。\n應用程式即將重新載入以更新看板與日誌視圖！'
+            )
 
-        if (isMockMode.value) {
-            // 💡 沙盒模式模擬還原
-            await new Promise(resolve => setTimeout(resolve, 1500))
-            const rawMock = storage.getItem('forge-fit-sandbox-backup')
-            if (rawMock) {
-                restoredDb = JSON.parse(rawMock)
-            }
-        } else {
-            // 💡 100% 真實下載：調用 core/drive API 從雲端 appDataFolder 拉回
-            restoredDb = await downloadBackup(accessToken.value)
+            // 1 秒後重載頁面以刷新全局資料流
+            setTimeout(() => {
+                window.location.reload()
+            }, 1000)
         }
-
-        if (!restoredDb) {
-            if (isMockMode.value) {
-                alert('🧐 您的模擬沙盒備份中目前尚未有紀錄！\n請先嘗試點擊「立即上傳備份」。')
-            } else {
-                alert(
-                    '🧐 您的真實 Google 雲端硬碟中目前尚未有 forge-fit 的備份紀錄！\n請先嘗試點擊「立即上傳備份」。'
-                )
-            }
-            return
-        }
-
-        // 更新本地 LocalStorage
-        saveDatabase(restoredDb)
-
-        if (confettiEngine) confettiEngine.burst(100)
-        alert(
-            '💚 備份還原成功！本地重訓日誌已與雲端同步。\n應用程式即將重新載入以更新看板與日誌視圖！'
-        )
-
-        // 1 秒後重載頁面以刷新全局資料流
-        setTimeout(() => {
-            window.location.reload()
-        }, 1000)
-    } catch (error) {
+    } catch (error: any) {
         console.error('還原備份失敗:', error)
-        alert('雲端資料還原失敗，請檢查備份狀態後重試！')
-    } finally {
-        isRestoring.value = false
+        alert(error?.message || '雲端資料還原失敗，請檢查備份狀態後重試！')
     }
 }
 
-/**
- * ⚠️ 危險操作區：徹底抹除本機 LocalStorage 資料庫與 Google 雲端綁定快取
- */
-const handleResetApp = () => {
-    if (resetConfirmInput.value.toUpperCase() !== 'RESET') {
-        alert('安全驗證字元輸入錯誤，重置已被取消！')
-        return
-    }
 
-    // 徹底抹除本地 LocalStorage 相關健值
-    storage.removeItem('forge-fit-database-v1')
-    storage.removeItem('forge-fit-google-token')
-    storage.removeItem('forge-fit-google-email')
-    storage.removeItem('forge-fit-google-last-sync')
-    storage.removeItem('forge-fit-sandbox-backup')
-    storage.removeItem('forge-fit-custom-client-id')
-
-    showResetModal.value = false
-    resetConfirmInput.value = ''
-
-    alert('🔥 本地數據已徹底抹除！應用程式將自動重置並重載！')
-    window.location.reload()
-}
 </script>
 
 <template>
@@ -572,8 +485,8 @@ const handleResetApp = () => {
                             網域下將自動解鎖真實雲端同步。</span
                         >
                         <span v-else
-                            >隱私保護：數據將加密儲存至您的 Google
-                            隱藏應用目錄，完全保護資料隱私。</span
+                            >隱私保護：備份會加密存儲至您的 Google Drive
+                            隱藏應用數據區 (AppData)，可防誤刪且完全保護隱私。</span
                         >
                     </div>
                 </div>
@@ -721,73 +634,10 @@ const handleResetApp = () => {
             </div>
         </div>
 
-        <!-- 💡 區塊三：危險數據重置區 (Danger Zone) -->
-        <div class="settings-section danger-zone-section" style="margin-top: 2.5rem">
-            <div class="section-title">
-                <AlertTriangle
-                    :size="18"
-                    class="text-danger"
-                    style="filter: drop-shadow(0 0 4px var(--color-danger))"
-                />
-                <h3 class="text-danger">數據危險區 (Danger Zone)</h3>
-            </div>
 
-            <div class="danger-box">
-                <div class="danger-desc">
-                    <h4>重置應用程式數據</h4>
-                    <p>
-                        這會徹底清除本機的所有重訓日誌歷史、自訂動作與 Google
-                        綁定快取。此操作不可逆！
-                    </p>
-                </div>
-                <button @click="showResetModal = true" class="btn btn-outline-danger">
-                    <Trash2 :size="16" />
-                    重置所有數據
-                </button>
-            </div>
-        </div>
-
-        <!-- 💡 彈出式毛玻璃重置安全確認 Modal -->
-        <div v-if="showResetModal" class="modal-overlay">
-            <div
-                class="modal-content glass-card card-glow-red"
-                style="animation: fadeInUp 0.25s ease"
-            >
-                <div class="modal-header">
-                    <AlertTriangle
-                        class="text-danger"
-                        :size="24"
-                        style="filter: drop-shadow(0 0 6px var(--color-danger))"
-                    />
-                    <h3>安全性確認！您正在執行徹底重置</h3>
-                </div>
-                <div class="modal-body">
-                    <p class="warning-text">
-                        此動作將徹底抹除本地資料庫與雲端綁定紀錄。如果您確定要重置，請在下方輸入框中輸入大寫的
-                        <strong>"RESET"</strong> 以進行安全驗證：
-                    </p>
-                    <input
-                        type="text"
-                        v-model="resetConfirmInput"
-                        placeholder="請輸入 RESET"
-                        class="modal-text-input"
-                    />
-                </div>
-                <div class="modal-footer">
-                    <button @click="showResetModal = false" class="btn btn-secondary">取消</button>
-                    <button
-                        @click="handleResetApp"
-                        class="btn btn-danger"
-                        :disabled="resetConfirmInput.toUpperCase() !== 'RESET'"
-                    >
-                        確認重置抹除
-                    </button>
-                </div>
-            </div>
-        </div>
 
         <!-- 💡 霓虹發光粒子雨畫布 -->
-        <canvas ref="confettiCanvas" class="settings-confetti-canvas"></canvas>
+        <canvas v-if="isCanvasActive" ref="confettiCanvas" class="settings-confetti-canvas"></canvas>
     </div>
 </template>
 
@@ -1136,151 +986,7 @@ const handleResetApp = () => {
     list-style-type: circle;
 }
 
-/* 危險重置區 */
-.danger-zone-section {
-    border-color: rgba(255, 74, 74, 0.25) !important;
-    background: rgba(255, 74, 74, 0.01) !important;
-}
 
-.danger-box {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 1rem;
-}
-
-.danger-desc h4 {
-    font-size: 0.88rem;
-    font-weight: 700;
-    color: #fff;
-    margin-bottom: 0.25rem;
-}
-
-.danger-desc p {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    line-height: 1.4;
-}
-
-.danger-box button {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.8rem;
-    font-weight: 700;
-    padding: 0.55rem 1rem;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 74, 74, 0.3) !important;
-    color: var(--color-danger) !important;
-    background: rgba(255, 74, 74, 0.03) !important;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-}
-
-.danger-box button:hover {
-    background: var(--color-danger) !important;
-    color: #fff !important;
-    box-shadow: 0 0 12px rgba(255, 74, 74, 0.3);
-}
-
-/* 毛玻璃安全確認 Modal */
-.modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(4, 5, 9, 0.75);
-    backdrop-filter: blur(8px);
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 1rem;
-}
-
-.modal-content {
-    max-width: 420px;
-    width: 100%;
-    background: rgba(18, 22, 36, 0.95) !important;
-    border-color: rgba(255, 74, 74, 0.35) !important;
-    box-shadow: 0 10px 40px rgba(255, 74, 74, 0.15) !important;
-}
-
-.card-glow-red {
-    box-shadow: 0 0 25px rgba(255, 74, 74, 0.08);
-}
-
-.modal-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-}
-
-.modal-header h3 {
-    font-size: 1.05rem;
-    font-weight: 800;
-    color: #fff;
-}
-
-.modal-body {
-    font-size: 0.82rem;
-    color: var(--text-sub);
-    line-height: 1.6;
-}
-
-.warning-text {
-    margin-bottom: 1rem;
-}
-
-.modal-text-input {
-    width: 100%;
-    background: rgba(8, 10, 16, 0.7);
-    border: 1px solid rgba(255, 74, 74, 0.3);
-    border-radius: 8px;
-    padding: 0.65rem 0.75rem;
-    color: #fff;
-    font-size: 0.95rem;
-    font-weight: 700;
-    text-align: center;
-    outline: none;
-    letter-spacing: 0.1em;
-    transition: all 0.2s ease;
-}
-
-.modal-text-input:focus {
-    border-color: var(--color-danger);
-    box-shadow: 0 0 10px rgba(255, 74, 74, 0.25);
-}
-
-.modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.75rem;
-    margin-top: 1.5rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.03);
-    padding-top: 1rem;
-}
-
-.modal-footer button {
-    font-size: 0.85rem;
-    font-weight: 700;
-    padding: 0.55rem 1rem;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.modal-footer .btn-danger:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-    background: rgba(255, 74, 74, 0.1) !important;
-    border-color: rgba(255, 74, 74, 0.1) !important;
-    color: rgba(255, 255, 255, 0.3) !important;
-    box-shadow: none;
-}
 
 /* 霓虹粒子 Canvas */
 .settings-confetti-canvas {
@@ -1290,7 +996,7 @@ const handleResetApp = () => {
     width: 100%;
     height: 100%;
     pointer-events: none;
-    z-index: 999;
+    z-index: 9999;
 }
 
 /* 💡 沙盒模擬模式專屬霓虹邊框與 Badge 狀態 */
@@ -1305,6 +1011,10 @@ const handleResetApp = () => {
 }
 
 @media (max-width: 576px) {
+    .settings-page-wrapper {
+        padding-bottom: 100px; /* 💡 確保設定頁面底部在手機上不會被 fixed 底部導覽列擋住 */
+    }
+
     .settings-section {
         padding: 1rem;
     }
@@ -1337,20 +1047,6 @@ const handleResetApp = () => {
         border: 1px solid rgba(255, 74, 74, 0.1);
         width: 100%;
         justify-content: center;
-    }
-
-    /* 💡 手機版危險區改為垂直卡片式佈局，視覺更加大器安全 */
-    .danger-box {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 1.25rem;
-        text-align: left;
-    }
-
-    .danger-box button {
-        width: 100%;
-        justify-content: center;
-        padding: 0.7rem 1rem;
     }
 }
 </style>

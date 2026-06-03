@@ -3,13 +3,18 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { Flame, CheckCircle2, TimerReset, HelpCircle, PieChart, X } from 'lucide-vue-next'
 // 💡 導入 Chart.js 核心庫 (從 packages 引入)
 import Chart from 'chart.js/auto'
-// 💡 導入共享的重訊日誌型別定義
-import type { WorkoutSession } from '@forge-fit/types'
 
-// 💡 宣告接收來自 App.vue 的 Props
-const props = defineProps<{
-    session: WorkoutSession
-}>()
+import { reactive } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useWorkoutStore } from '../../../entities/workout'
+
+const store = useWorkoutStore()
+const { todaySession } = storeToRefs(store)
+
+// 💡 用 reactive 模擬 props 物件，達成 100% 模板相容，完全不需改動 template 程式碼！
+const props = reactive({
+    session: todaySession
+})
 
 // 1. 控制「訓練總量科普提示框」的顯示/隱藏狀態
 const showVolumeTooltip = ref(false)

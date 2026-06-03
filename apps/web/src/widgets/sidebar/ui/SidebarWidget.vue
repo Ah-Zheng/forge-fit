@@ -1,8 +1,5 @@
 <script setup lang="ts">
 import { Dumbbell, LayoutDashboard, ClipboardList, BookOpen, Settings, User } from 'lucide-vue-next'
-
-// 💡 使用 Vue 3.4+ 高雅的雙向綁定 defineModel
-const currentTab = defineModel<string>('currentTab', { required: true })
 </script>
 
 <template>
@@ -15,39 +12,38 @@ const currentTab = defineModel<string>('currentTab', { required: true })
         </div>
 
         <nav class="sidebar-menu">
-            <button
-                @click="currentTab = 'dashboard'"
+            <RouterLink
+                to="/dashboard"
                 class="menu-item"
-                :class="{ active: currentTab === 'dashboard' }"
+                active-class="active"
             >
                 <LayoutDashboard :size="20" />
                 <span>訓練看板</span>
-            </button>
-            <button
-                @click="currentTab = 'logger'"
+            </RouterLink>
+            <RouterLink
+                to="/logger"
                 class="menu-item"
-                :class="{ active: currentTab === 'logger' }"
+                active-class="active"
             >
                 <ClipboardList :size="20" />
                 <span>重量紀錄</span>
-            </button>
-
-            <button
-                @click="currentTab = 'library'"
+            </RouterLink>
+            <RouterLink
+                to="/library"
                 class="menu-item"
-                :class="{ active: currentTab === 'library' }"
+                active-class="active"
             >
                 <BookOpen :size="20" />
                 <span>器材百科</span>
-            </button>
-            <button
-                @click="currentTab = 'settings'"
+            </RouterLink>
+            <RouterLink
+                to="/settings"
                 class="menu-item"
-                :class="{ active: currentTab === 'settings' }"
+                active-class="active"
             >
                 <Settings :size="20" />
                 <span>設定與備份</span>
-            </button>
+            </RouterLink>
         </nav>
 
         <div class="sidebar-user">

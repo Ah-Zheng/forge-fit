@@ -1,26 +1,46 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, reactive } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
+import { useWorkoutStore } from '../../../entities/workout'
 import { PlusCircle, Scale, Edit3, Check } from 'lucide-vue-next'
 // 💡 導入我們在 packages/core 中實作的常用負荷更新服務
 import { updateExerciseLoadRecord } from '@forge-fit/core'
 // 💡 導入共享的型別定義
-import type { ExerciseDef, WorkoutSession } from '@forge-fit/types'
+import type { ExerciseDef } from '@forge-fit/types'
 // 💡 導入共享的觸控步進器元件 (FSD 規範下的 shared/ui 層)
 import { TactileStepper } from '../../../shared/ui/stepper'
 
-// 💡 宣告接收來自 App.vue 的 Props
-const props = defineProps<{
-    exercisesLibrary: ExerciseDef[]
-    session: WorkoutSession // 💡 接收當前 session，以判斷是否處於歷史補記狀態
-}>()
+const store = useWorkoutStore()
+const router = useRouter()
+const { exercisesLibrary, todaySession } = storeToRefs(store)
 
-// 💡 宣告觸發給 App.vue 的事件 (一鍵加動作、刷新百科庫、跳頁、日期變更)
-const emit = defineEmits<{
-    (e: 'addExercise', exercise: ExerciseDef): void
-    (e: 'refreshLibrary'): void
-    (e: 'switchTab', tab: string, date?: string): void
-    (e: 'changeDate', date: string): void
-}>()
+// 💡 用 reactive 模擬 props 物件，達成 100% 模板相容
+const props = reactive({
+    exercisesLibrary,
+    session: todaySession
+})
+
+// 💡 自定義 emit 方法模擬器，將事件引流至 Pinia Store 與 Vue Router
+const emit = (event: string, ...args: any[]) => {
+    if (event === 'addExercise') {
+        const [exercise] = args
+        // 💡 呼叫 store 的 action 來將動作加入今日日誌
+        store.addExerciseToToday(exercise)
+        router.push('/logger')
+    } else if (event === 'refreshLibrary') {
+        store.refreshLibrary()
+    } else if (event === 'switchTab') {
+        const [tab, date] = args
+        router.push(`/${tab}`)
+        if (date) {
+            store.workoutDate = date
+        }
+    } else if (event === 'changeDate') {
+        const [date] = args
+        store.workoutDate = date
+    }
+}
 
 
 

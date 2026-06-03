@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, reactive } from 'vue'
+import { storeToRefs } from 'pinia'
+import { useWorkoutStore } from '../../../entities/workout'
 import { AlertCircle, Dumbbell, Trash2, Plus, Timer, Play, Pause, Sparkles, Check, Search, X, Scale, ChevronDown, ChevronUp } from 'lucide-vue-next'
 /** 💡 導入共享的型別定義 */
-import type { WorkoutSession, ExerciseSession, ExerciseDef } from '@forge-fit/types'
+import type { ExerciseSession, ExerciseDef } from '@forge-fit/types'
 /** 💡 導入我們在 packages/core 中實作的常用負荷更新服務 */
 import { updateExerciseLoadRecord } from '@forge-fit/core'
 /** 💡 導入我們剛剛寫好的共享觸控步進器組件 (FSD 規範下的 shared/ui 層) */
@@ -13,23 +15,31 @@ import { useMediaQuery } from '../../../shared/lib/useMediaQuery'
 
 const isMobile = useMediaQuery('(max-width: 768px)')
 
-/** 💡 宣告接收來自 App.vue 的 Props */
-const props = defineProps<{
-    session: WorkoutSession
-    exercisesLibrary?: ExerciseDef[] // 💡 宣告接收動作百科庫，以便實現組數智慧連動
-    openDrawerSignal?: number // 💡 接收底部大 + 按鈕一鍵喚醒抽屜的信號
-}>()
+const store = useWorkoutStore()
+const { todaySession, exercisesLibrary, isLoggerDrawerOpen } = storeToRefs(store)
 
-/** 💡 宣告觸發給 App.vue 的事件 */
-const emit = defineEmits<{
-    (e: 'changeDate', date: string): void
-    (e: 'refreshLibrary'): void // 💡 宣告刷新常用動作庫事件
-}>()
+// 💡 用 reactive 模擬 props 物件，達成 100% 模板相容，完全不需改動 template 程式碼！
+const props = reactive({
+    session: todaySession,
+    exercisesLibrary: exercisesLibrary,
+    openDrawerSignal: 0
+})
 
-// 💡 監聽一鍵喚醒抽屜信號，實現 Moze 記帳大 + 號的極致連動
-watch(() => props.openDrawerSignal, (newVal) => {
-    if (newVal !== undefined && newVal > 0) {
+// 💡 自定義 emit 方法模擬器，將事件引流至 Pinia Store Actions，維持 Template 100% 相容性！
+const emit = (event: string, ...args: any[]) => {
+    if (event === 'changeDate') {
+        const [date] = args
+        store.workoutDate = date
+    } else if (event === 'refreshLibrary') {
+        store.refreshLibrary()
+    }
+}
+
+// 💡 監聽 Pinia 全局 isLoggerDrawerOpen，實現中央大 + 號點擊時打開抽屜的連動
+watch(isLoggerDrawerOpen, (newVal) => {
+    if (newVal) {
         isDrawerOpen.value = true
+        isLoggerDrawerOpen.value = false // 自動重置以利下次觸發
     }
 })
 
