@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LayoutDashboard, ClipboardList, BookOpen, Settings, Plus, Compass } from 'lucide-vue-next'
+import { LayoutDashboard, ClipboardList, BookOpen, Settings, Plus, Compass } from '@lucide/vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWorkoutStore } from '../../../entities/workout'
 

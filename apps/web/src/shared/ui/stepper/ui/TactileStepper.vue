@@ -10,9 +10,11 @@ const props = withDefaults(
         modelValue: number // 綁定的數值 (例如重量或次數)
         step: number // 每次點擊加減的步進值 (例如 2.5 或 1)
         min?: number // 最小值限制，預設為 0
+        disabled?: boolean // 是否禁用步進器
     }>(),
     {
-        min: 0
+        min: 0,
+        disabled: false
     }
 )
 
@@ -27,6 +29,7 @@ let intervalId: number | null = null
 
 // 減少數值的處理函式
 const handleMinus = () => {
+    if (props.disabled) return
     const newValue = Math.max(props.min, props.modelValue - props.step)
     // 💡 處理浮點數加減的誤差精度 (特別是 2.5kg 的小數點後一位)
     const fixedValue = parseFloat(newValue.toFixed(1))
@@ -35,6 +38,7 @@ const handleMinus = () => {
 
 // 增加數值的處理函式
 const handlePlus = () => {
+    if (props.disabled) return
     const newValue = props.modelValue + props.step
     const fixedValue = parseFloat(newValue.toFixed(1))
     emit('update:modelValue', fixedValue)
@@ -42,6 +46,7 @@ const handlePlus = () => {
 
 // 💡 PointerDown 觸發：開始計時長按步進
 const startStepping = (isAdd: boolean) => {
+    if (props.disabled) return
     // 執行第一次的單點更新
     if (isAdd) {
         handlePlus()
@@ -55,6 +60,10 @@ const startStepping = (isAdd: boolean) => {
     // 400ms 後若未放開，開啟每 80ms 一次的高速連續跳動
     timeoutId = window.setTimeout(() => {
         intervalId = window.setInterval(() => {
+            if (props.disabled) {
+                clearTimers()
+                return
+            }
             if (isAdd) {
                 handlePlus()
             } else {
@@ -86,11 +95,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="stepper-input">
+    <div class="stepper-input" :class="{ 'is-disabled': props.disabled }">
         <!-- 減號按鈕 -->
         <button
             type="button"
             class="btn-step btn-minus"
+            :disabled="props.disabled"
             @pointerdown.prevent="startStepping(false)"
             @pointerup="stopStepping"
             @pointerleave="stopStepping"
@@ -100,12 +110,13 @@ onUnmounted(() => {
         </button>
 
         <!-- 唯讀輸入框 (保證手機上不彈出虛擬鍵盤，維持極致流暢度) -->
-        <input type="number" :value="props.modelValue" readonly />
+        <input type="number" :value="props.modelValue" readonly :disabled="props.disabled" />
 
         <!-- 加號按鈕 -->
         <button
             type="button"
             class="btn-step btn-plus"
+            :disabled="props.disabled"
             @pointerdown.prevent="startStepping(true)"
             @pointerup="stopStepping"
             @pointerleave="stopStepping"
@@ -131,10 +142,21 @@ onUnmounted(() => {
     height: 38px;
 }
 
+.stepper-input.is-disabled {
+    opacity: 0.45;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
 .stepper-input:focus-within,
 .stepper-input:hover {
     border-color: rgba(0, 240, 255, 0.4);
     box-shadow: 0 0 10px rgba(0, 240, 255, 0.1);
+}
+
+.stepper-input.is-disabled:hover {
+    border-color: var(--border-soft);
+    box-shadow: none;
 }
 
 .btn-step {
@@ -152,6 +174,11 @@ onUnmounted(() => {
     cursor: pointer;
     transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
     touch-action: manipulation;
+}
+
+.btn-step:disabled {
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 .btn-step:hover {

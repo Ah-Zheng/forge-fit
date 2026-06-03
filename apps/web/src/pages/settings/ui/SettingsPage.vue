@@ -9,11 +9,8 @@ import {
     UserCheck,
     LogOut,
     AlertTriangle,
-    ShieldCheck,
-    Key,
-    Info,
-    CheckCircle2
-} from 'lucide-vue-next'
+    ShieldCheck
+} from '@lucide/vue'
 /** 💡 導入我們手寫的高性能 Canvas 霓虹粒子引擎 */
 import { NeonConfetti } from '../../../shared/lib/confetti'
 
@@ -196,45 +193,7 @@ const initGoogleOAuth = () => {
     }
 }
 
-/**
- * 儲存使用者手動輸入的真實自訂 Google Client ID
- */
-const handleSaveClientId = () => {
-    if (!customClientId.value.trim().endsWith('.apps.googleusercontent.com')) {
-        alert(
-            '❌ 格式錯誤！Google Client ID 必須以「.apps.googleusercontent.com」結尾，請重新檢查！'
-        )
-        return
-    }
 
-    const key = customClientId.value.trim()
-    storage.setItem('forge-fit-custom-client-id', key)
-    isSavedKey.value = true
-    isMockMode.value = false
-
-    // 強制重啟並綁定真實的 Google GIS
-    initGoogleOAuth()
-
-    triggerCelebrate(40)
-    alert(
-        '🔑 真實憑證金鑰已儲存並成功生效！\n現在點選「連結真實 Google 帳號」將會拉起 100% 真實登入授權！'
-    )
-}
-
-/**
- * 清除自訂憑證金鑰，還原為預設模式
- */
-const handleClearClientId = () => {
-    if (confirm('確定要清除自訂金鑰並斷開連結嗎？這會將專案還原回模擬沙盒測試狀態。')) {
-        handleDisconnect(false)
-        storage.removeItem('forge-fit-custom-client-id')
-        customClientId.value = ''
-        isSavedKey.value = false
-        isMockMode.value = !isLocalhost.value // 本地還是可以維持真實
-        tokenClient = null
-        alert('憑證已清除，已安全還原為預設模式。')
-    }
-}
 
 /**
  * 點擊連結 Google 帳號，自動判斷是走真實 OAuth 授權還是模擬沙盒模式
@@ -493,146 +452,7 @@ const handleDownloadRestore = async () => {
             </div>
         </div>
 
-        <!-- 💡 區塊二：100% 真實綁定！Google 開發者金鑰設定面板 (Google Credentials Setup) -->
-        <div class="settings-section" style="margin-top: 2rem">
-            <div class="section-title">
-                <Key :size="18" class="text-cyan" />
-                <h3>Google 開發者金鑰設定 (真實綁定)</h3>
-            </div>
 
-            <div class="credential-setup-box">
-                <p class="credential-desc">
-                    本項目預設支援在
-                    <code>localhost</code>
-                    直接進行真實綁定。若您已將應用程式部署至自訂網域，請在下方輸入您在 Google Cloud
-                    申請的 Web Client ID 憑證金鑰以開啟真實備份：
-                </p>
-
-                <div class="client-id-input-group" style="margin-top: 1rem">
-                    <input
-                        type="text"
-                        v-model="customClientId"
-                        placeholder="請貼上 .apps.googleusercontent.com 結尾的金鑰"
-                        class="client-id-text-input"
-                        :disabled="isSavedKey"
-                    />
-
-                    <button
-                        v-if="!isSavedKey"
-                        @click="handleSaveClientId"
-                        class="btn btn-primary btn-sm save-key-btn"
-                        :disabled="!customClientId"
-                    >
-                        儲存憑證
-                    </button>
-                    <button
-                        v-else
-                        @click="handleClearClientId"
-                        class="btn btn-danger btn-sm clear-key-btn"
-                    >
-                        清除憑證
-                    </button>
-                </div>
-
-                <div
-                    v-if="isSavedKey"
-                    class="key-status-indicator"
-                    style="margin-top: 0.75rem; animation: fadeIn 0.2s ease"
-                >
-                    <CheckCircle2 class="text-green" :size="14" />
-                    <span class="text-green"
-                        >真實 Google 憑證已生效！現在點選上方連結按鈕將會啟動真實 Google
-                        登入。</span
-                    >
-                </div>
-
-                <!-- 貼心且精緻的 3 步驟 OAuth 教學指南 -->
-                <details class="oauth-guide-details" style="margin-top: 1.25rem">
-                    <summary class="oauth-guide-summary">
-                        <Info :size="14" />
-                        <span>為什麼預設登入顯示「存取已封鎖」？如何取得我專屬的 Client ID？</span>
-                    </summary>
-                    <div class="oauth-guide-content">
-                        <div
-                            class="oauth-blocked-reason"
-                            style="
-                                margin-bottom: 1rem;
-                                padding-bottom: 0.75rem;
-                                border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
-                            "
-                        >
-                            <h4 style="color: #fbbc05; margin-bottom: 0.35rem; font-size: 0.8rem">
-                                ⚠️ 為什麼預設登入會顯示「存取已封鎖」？
-                            </h4>
-                            <p style="font-size: 0.72rem; line-height: 1.5; color: var(--text-sub)">
-                                1.
-                                <strong>帳號不在測試名單中（最常見）</strong
-                                >：由於本機預設的公共金鑰所屬的 Google 專案處於開發階段，尚未提交給
-                                Google 官方完成商業驗證。依 Google
-                                安全規範，在「測試中」狀態下，<strong
-                                    >只有手動加入該 GCP 專案測試使用者清單的 Google
-                                    帳號才能登入</strong
-                                >。其他帳號皆會被 Google 阻擋並提示已封鎖。<br />
-                                2. <strong>網域或 Port 埠口不匹配</strong>：預設金鑰登記的授權來源為
-                                <code>http://localhost:5173</code>。若您的本機運行在其他埠口（如
-                                5174）或以 <code>127.0.0.1</code> 訪問，Google
-                                也會出於安全考量直接封鎖連線。
-                            </p>
-                        </div>
-
-                        <h4 style="color: #fff; margin-bottom: 0.5rem; font-size: 0.8rem">
-                            🔑 3 步驟建立您專屬的真實綁定金鑰 (100% 成功連線)：
-                        </h4>
-                        <ol>
-                            <li>
-                                開啟
-                                <a
-                                    href="https://console.cloud.google.com/"
-                                    target="_blank"
-                                    class="text-cyan"
-                                    >Google Cloud Console</a
-                                >，建立新專案，搜尋並啟用 <strong>Google Drive API</strong>。
-                            </li>
-                            <li>
-                                前往 <strong>OAuth 同意畫面</strong>（OAuth consent screen）：
-                                <ul>
-                                    <li>將發行狀態設為「測試中」或「生產」。</li>
-                                    <li>
-                                        在「範圍」中新增並核取
-                                        <code>.../auth/drive.appdata</code> 權限（Drive AppData
-                                        隱密專屬區）。
-                                    </li>
-                                    <li>
-                                        <strong>【關鍵核心步驟】</strong>：在
-                                        <strong>「測試使用者」</strong>（Test users）區塊中，<strong
-                                            >手動新增您自己的 Google 帳號信箱！</strong
-                                        >
-                                    </li>
-                                </ul>
-                            </li>
-                            <li>
-                                前往 <strong>憑證</strong>（Credentials）➔ 點選
-                                <strong>建立憑證</strong> ➔ 選擇
-                                <strong>OAuth 用戶端識別碼</strong>，類型選
-                                <strong>「網頁應用程式」</strong>：
-                                <ul>
-                                    <li>
-                                        將您本地或部署網址（如
-                                        <code>http://localhost:5173</code> 或您的自訂網址）新增至
-                                        <strong>「已授權的 JavaScript 來源」</strong>。
-                                    </li>
-                                    <li>
-                                        點擊建立後，複製產生的以
-                                        <code>.apps.googleusercontent.com</code> 結尾的 Client ID
-                                        金鑰，貼在上方儲存即可 100% 解鎖真實備份！
-                                    </li>
-                                </ul>
-                            </li>
-                        </ol>
-                    </div>
-                </details>
-            </div>
-        </div>
 
 
 

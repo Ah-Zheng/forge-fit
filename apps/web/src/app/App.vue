@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 // 💡 導入我們手寫的 Pinia Workout Store
 import { useWorkoutStore } from '../entities/workout'
-import { Dumbbell, Menu, X, LayoutDashboard, ClipboardList, BookOpen, Settings } from 'lucide-vue-next'
+import { Dumbbell, Menu, X, LayoutDashboard, ClipboardList, BookOpen, Settings } from '@lucide/vue'
 import { SidebarWidget } from '../widgets/sidebar'
 import { MobileNavWidget } from '../widgets/mobile-nav'
 import { useMediaQuery } from '../shared/lib/useMediaQuery'

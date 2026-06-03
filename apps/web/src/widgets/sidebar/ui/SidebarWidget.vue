@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Dumbbell, LayoutDashboard, ClipboardList, BookOpen, Settings, User } from 'lucide-vue-next'
+import { Dumbbell, LayoutDashboard, ClipboardList, BookOpen, Settings, User } from '@lucide/vue'
 </script>
 
 <template>

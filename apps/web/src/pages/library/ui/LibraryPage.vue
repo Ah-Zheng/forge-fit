@@ -3,7 +3,7 @@ import { ref, computed, reactive } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useWorkoutStore } from '../../../entities/workout'
-import { PlusCircle, Scale, Edit3, Check } from 'lucide-vue-next'
+import { PlusCircle, Scale, Edit3, Check } from '@lucide/vue'
 // 💡 導入我們在 packages/core 中實作的常用負荷更新服務
 import { updateExerciseLoadRecord } from '@forge-fit/core'
 // 💡 導入共享的型別定義

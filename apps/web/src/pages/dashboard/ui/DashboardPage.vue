@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { Flame, CheckCircle2, TimerReset, HelpCircle, PieChart, X } from 'lucide-vue-next'
+import { Flame, CheckCircle2, TimerReset, HelpCircle, PieChart, X } from '@lucide/vue'
 // 💡 導入 Chart.js 核心庫 (從 packages 引入)
 import Chart from 'chart.js/auto'
 

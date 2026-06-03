@@ -12,7 +12,7 @@ import {
     Sparkles,
     CalendarClock,
     PlusCircle
-} from 'lucide-vue-next'
+} from '@lucide/vue'
 /** 💡 導入共享的核心資料庫 API */
 import { getAllWorkouts } from '@forge-fit/core'
 /** 💡 導入共享型別定義 */
