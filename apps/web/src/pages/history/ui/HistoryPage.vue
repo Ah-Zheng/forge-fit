@@ -17,6 +17,9 @@ import {
 import { getAllWorkouts } from '@forge-fit/core'
 /** 💡 導入共享型別定義 */
 import type { WorkoutSession, ExerciseSession } from '@forge-fit/types'
+import { useDialogStore } from '../../../shared/ui/dialog/dialogStore'
+
+const dialogStore = useDialogStore()
 
 // 💡 宣告接收來自 App.vue 的 Props 與 Emits
 const props = defineProps<{
@@ -212,12 +215,17 @@ const selectDate = (dateStr: string) => {
 }
 
 // 3. 🏋️‍♂️ 殺手級痛點解決功能：「一鍵複製為今日課表範本」
-const applyAsTodayTemplate = () => {
+const applyAsTodayTemplate = async () => {
     const session = selectedSession.value
     if (!session || session.exercises.length === 0) return
     
-    if (confirm(`確定要把 [${session.date}] 鍛鍊的 ${session.exercises.length} 個動作，一鍵套用為今天的課表嗎？\n(這會將您今天尚未完成的課表覆蓋，但會複製當時設定的重量與組數模板喔！)`)) {
-        
+    const confirmApply = await dialogStore.confirm(
+        `這會將您今天尚未完成的課表覆蓋，但會複製當時設定的重量與組數模板喔！\n\n確定要把 [${session.date}] 鍛鍊的 ${session.exercises.length} 個動作，一鍵套用為今天的課表嗎？`,
+        '套用課表範本',
+        { type: 'warning', confirmText: '套用課表', cancelText: '取消' }
+    )
+
+    if (confirmApply) {
         // 💡 執行深拷貝複製動作與組數結構，重置完成狀態為未完成 (completed = false)
         const copiedExercises: ExerciseSession[] = JSON.parse(JSON.stringify(session.exercises))
         copiedExercises.forEach(ex => {
@@ -229,7 +237,7 @@ const applyAsTodayTemplate = () => {
         // 💡 突變今日 session 數據，這會自動觸發 App.vue 的 deep watch 進行 LocalStorage 保存！
         props.session.exercises = copiedExercises
         
-        alert('💪 課表套用成功！已為您複製常用重量與組數設定。')
+        await dialogStore.alert('已為您複製常用重量與組數設定。', '課表套用成功', { type: 'success' })
         // 導航跳轉回今日重量紀錄 Logger 分頁
         emit('switchTab', 'logger')
     }

@@ -85,9 +85,64 @@ export function saveDatabase(db: WorkoutDatabase): void {
 export function getWorkoutByDate(date: string): WorkoutSession {
     const db = initDatabase()
 
-    // 若該日期已有日誌，直接回傳
+    // 若該日期已有日誌，進行防禦性結構修復後回傳
     if (db.sessions[date]) {
-        return db.sessions[date]
+        const session = db.sessions[date]
+        
+        // 1. 確保 date 屬性正確
+        if (session.date !== date) {
+            session.date = date
+        }
+        
+        // 2. 確保 exercises 是陣列，若不是則重置為空陣列
+        if (!session.exercises || !Array.isArray(session.exercises)) {
+            session.exercises = []
+        } else {
+            // 3. 確保每個 exercise 的結構都完整
+            session.exercises = session.exercises.filter(ex => ex && typeof ex === 'object').map(ex => {
+                const cleanEx = { ...ex }
+                if (!cleanEx.exerciseId) {
+                    cleanEx.exerciseId = `temp-id-${Date.now()}`
+                }
+                if (!cleanEx.name) {
+                    cleanEx.name = '未命名動作'
+                }
+                if (!cleanEx.muscle) {
+                    cleanEx.muscle = 'chest' // 預設安全值
+                }
+                if (!cleanEx.sets || !Array.isArray(cleanEx.sets)) {
+                    cleanEx.sets = []
+                } else {
+                    cleanEx.sets = cleanEx.sets.filter(s => s && typeof s === 'object').map(s => {
+                        let w = typeof s.weight === 'number' && !isNaN(s.weight) ? s.weight : 40
+                        let r = typeof s.reps === 'number' && !isNaN(s.reps) ? s.reps : 10
+                        let c = typeof s.completed === 'boolean' ? s.completed : false
+                        return { weight: w, reps: r, completed: c }
+                    })
+                }
+                return cleanEx
+            })
+        }
+
+        // 4. 確保計時時長各欄位皆為合法數字，非 NaN
+        let duration = typeof session.duration === 'number' && !isNaN(session.duration) ? session.duration : 0
+        session.duration = Math.max(0, duration)
+
+        if (session.secondsElapsed !== undefined) {
+            let seconds = typeof session.secondsElapsed === 'number' && !isNaN(session.secondsElapsed) ? session.secondsElapsed : 0
+            session.secondsElapsed = Math.max(0, seconds)
+        }
+
+        if (session.isTimerActive !== undefined) {
+            session.isTimerActive = typeof session.isTimerActive === 'boolean' ? session.isTimerActive : false
+        }
+
+        if (session.timerStartedAt !== undefined) {
+            let startedAt = typeof session.timerStartedAt === 'number' && !isNaN(session.timerStartedAt) ? session.timerStartedAt : undefined
+            session.timerStartedAt = startedAt
+        }
+
+        return session
     }
 
     // 若無日誌，返回乾淨的空結構
@@ -104,9 +159,72 @@ export function getWorkoutByDate(date: string): WorkoutSession {
  * @param session 單日的訓練日誌結構
  */
 export function saveWorkout(date: string, session: WorkoutSession): void {
+    if (!session) return
     const db = initDatabase()
-    db.sessions[date] = session
+
+    // 防禦性修復 session 內容
+    const cleanSession = { ...session }
+    
+    cleanSession.date = date
+    
+    if (!cleanSession.exercises || !Array.isArray(cleanSession.exercises)) {
+        cleanSession.exercises = []
+    } else {
+        cleanSession.exercises = cleanSession.exercises.filter(ex => ex && typeof ex === 'object').map(ex => {
+            const cleanEx = { ...ex }
+            if (!cleanEx.exerciseId) {
+                cleanEx.exerciseId = `temp-id-${Date.now()}`
+            }
+            if (!cleanEx.name) {
+                cleanEx.name = '未命名動作'
+            }
+            if (!cleanEx.muscle) {
+                cleanEx.muscle = 'chest'
+            }
+            if (!cleanEx.sets || !Array.isArray(cleanEx.sets)) {
+                cleanEx.sets = []
+            } else {
+                cleanEx.sets = cleanEx.sets.filter(s => s && typeof s === 'object').map(s => {
+                    let w = typeof s.weight === 'number' && !isNaN(s.weight) ? s.weight : 40
+                    let r = typeof s.reps === 'number' && !isNaN(s.reps) ? s.reps : 10
+                    let c = typeof s.completed === 'boolean' ? s.completed : false
+                    return { weight: w, reps: r, completed: c }
+                })
+            }
+            return cleanEx
+        })
+    }
+
+    let duration = typeof cleanSession.duration === 'number' && !isNaN(cleanSession.duration) ? cleanSession.duration : 0
+    cleanSession.duration = Math.max(0, duration)
+
+    if (cleanSession.secondsElapsed !== undefined) {
+        let seconds = typeof cleanSession.secondsElapsed === 'number' && !isNaN(cleanSession.secondsElapsed) ? cleanSession.secondsElapsed : 0
+        cleanSession.secondsElapsed = Math.max(0, seconds)
+    }
+
+    if (cleanSession.isTimerActive !== undefined) {
+        cleanSession.isTimerActive = typeof cleanSession.isTimerActive === 'boolean' ? cleanSession.isTimerActive : false
+    }
+
+    if (cleanSession.timerStartedAt !== undefined) {
+        let startedAt = typeof cleanSession.timerStartedAt === 'number' && !isNaN(cleanSession.timerStartedAt) ? cleanSession.timerStartedAt : undefined
+        cleanSession.timerStartedAt = startedAt
+    }
+
+    db.sessions[date] = cleanSession
     saveDatabase(db)
+}
+
+/**
+ * 檢查特定日期是否有訓練紀錄
+ * @param date 日期字串，格式為 "YYYY-MM-DD"
+ * @returns 是否有至少包含一個動作的紀錄
+ */
+export function hasWorkoutOnDate(date: string): boolean {
+    const db = initDatabase()
+    const session = db.sessions[date]
+    return !!(session && session.exercises && session.exercises.length > 0)
 }
 
 /**
@@ -162,6 +280,20 @@ export function updateExerciseLoadRecord(exerciseId: string, weight: number, rep
     if (ex) {
         ex.targetWeight = weight
         ex.targetReps = reps
+        saveDatabase(db)
+    }
+}
+
+/**
+ * 💡 清除常用器材/動作的可承受訓練負荷紀錄
+ * @param exerciseId 動作 ID
+ */
+export function clearExerciseLoadRecord(exerciseId: string): void {
+    const db = initDatabase()
+    const ex = db.exercisesLibrary.find(e => e.id === exerciseId)
+    if (ex) {
+        delete ex.targetWeight
+        delete ex.targetReps
         saveDatabase(db)
     }
 }

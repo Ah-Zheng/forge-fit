@@ -3,9 +3,9 @@ import { ref, computed, reactive } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { useWorkoutStore } from '../../../entities/workout'
-import { PlusCircle, Scale, Edit3, Check } from '@lucide/vue'
+import { Scale, Edit3, Check, Trash2 } from '@lucide/vue'
 // 💡 導入我們在 packages/core 中實作的常用負荷更新服務
-import { updateExerciseLoadRecord } from '@forge-fit/core'
+import { updateExerciseLoadRecord, clearExerciseLoadRecord } from '@forge-fit/core'
 // 💡 導入共享的型別定義
 import type { ExerciseDef } from '@forge-fit/types'
 // 💡 導入共享的觸控步進器元件 (FSD 規範下的 shared/ui 層)
@@ -13,22 +13,16 @@ import { TactileStepper } from '../../../shared/ui/stepper'
 
 const store = useWorkoutStore()
 const router = useRouter()
-const { exercisesLibrary, todaySession } = storeToRefs(store)
+const { exercisesLibrary } = storeToRefs(store)
 
 // 💡 用 reactive 模擬 props 物件，達成 100% 模板相容
 const props = reactive({
-    exercisesLibrary,
-    session: todaySession
+    exercisesLibrary
 })
 
 // 💡 自定義 emit 方法模擬器，將事件引流至 Pinia Store 與 Vue Router
 const emit = (event: string, ...args: any[]) => {
-    if (event === 'addExercise') {
-        const [exercise] = args
-        // 💡 呼叫 store 的 action 來將動作加入今日日誌
-        store.addExerciseToToday(exercise)
-        router.push('/logger')
-    } else if (event === 'refreshLibrary') {
+    if (event === 'refreshLibrary') {
         store.refreshLibrary()
     } else if (event === 'switchTab') {
         const [tab, date] = args
@@ -41,8 +35,6 @@ const emit = (event: string, ...args: any[]) => {
         store.workoutDate = date
     }
 }
-
-
 
 // 💡 分類選單狀態管理與定義
 const selectedCategory = ref<string>('all')
@@ -126,10 +118,14 @@ const startEditingLoad = (ex: ExerciseDef) => {
 // 儲存常用負荷紀錄至本地資料庫並更新畫面
 const saveLoadRecord = (exerciseId: string) => {
     updateExerciseLoadRecord(exerciseId, tempWeight.value, tempReps.value)
-
-    // 💡 響應式事件連動：通知 App.vue 重載常用動作庫，畫面隨即自動更新
     emit('refreshLibrary')
+    editingExerciseId.value = null
+}
 
+// 清除常用負荷紀錄
+const clearLoadRecord = (exerciseId: string) => {
+    clearExerciseLoadRecord(exerciseId)
+    emit('refreshLibrary')
     editingExerciseId.value = null
 }
 </script>
@@ -166,12 +162,11 @@ const saveLoadRecord = (exerciseId: string) => {
         <div class="library-right-column">
             <!-- 💡 動態動作庫清單：直接讀取來自 packages/core 載入的本機資料庫字典，並支援即時篩選 -->
             <div class="quick-exercise-list">
-                <div
-                    v-for="ex in filteredExercises"
-                    :key="ex.id"
-                    class="lib-card"
-                >
-                    <div class="lib-item-row" :class="{ 'is-editing': editingExerciseId === ex.id }">
+                <div v-for="ex in filteredExercises" :key="ex.id" class="lib-card">
+                    <div
+                        class="lib-item-row"
+                        :class="{ 'is-editing': editingExerciseId === ex.id }"
+                    >
                         <div class="item-info">
                             <div class="item-name">{{ ex.name }}</div>
                             <div class="item-meta-row">
@@ -180,9 +175,14 @@ const saveLoadRecord = (exerciseId: string) => {
                                 </span>
 
                                 <!-- 💡 常用負荷狀態小卡 (發光霓虹青) -->
-                                <span v-if="ex.targetWeight !== undefined" class="load-record-display">
+                                <span
+                                    v-if="ex.targetWeight !== undefined"
+                                    class="load-record-display"
+                                >
                                     <Scale :size="13" class="text-cyan" />
-                                    <span class="highlight-cyan">{{ ex.targetWeight }} kg × {{ ex.targetReps }} 下</span>
+                                    <span class="highlight-cyan"
+                                        >{{ ex.targetWeight }} kg × {{ ex.targetReps }} 下</span
+                                    >
                                 </span>
                                 <span v-else class="load-record-display load-empty">
                                     <Scale :size="13" /> 尚未設定適應重量
@@ -199,15 +199,6 @@ const saveLoadRecord = (exerciseId: string) => {
                                 title="設定或修改常用可承受重量"
                             >
                                 <Edit3 :size="18" />
-                            </button>
-
-                            <!-- 一鍵加入今日日誌按鈕 -->
-                            <button
-                                class="btn-quick-add"
-                                @click="emit('addExercise', ex)"
-                                title="將此動作加入今日重訓日誌"
-                            >
-                                <PlusCircle :size="26" />
                             </button>
                         </div>
                     </div>
@@ -228,10 +219,22 @@ const saveLoadRecord = (exerciseId: string) => {
                                 <TactileStepper v-model="tempReps" :step="1" :min="1" />
                             </div>
                         </div>
-                        <button class="btn btn-primary btn-sm save-load-btn" @click="saveLoadRecord(ex.id)">
-                            <Check :size="14" />
-                            <span>儲存</span>
-                        </button>
+                        <div class="panel-actions">
+                            <button
+                                class="btn btn-primary btn-sm save-load-btn"
+                                @click="saveLoadRecord(ex.id)"
+                            >
+                                <Check :size="14" />
+                                <span>儲存</span>
+                            </button>
+                            <button
+                                class="btn btn-sm clear-load-btn"
+                                @click="clearLoadRecord(ex.id)"
+                            >
+                                <Trash2 :size="13" />
+                                <span>清除</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -378,7 +381,7 @@ const saveLoadRecord = (exerciseId: string) => {
     overflow: hidden;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: var(--shadow-card);
-    flex-shrink: 0;                    /* 💡 健檢優化：防止在 Flex 容器中因高度超限而被意外壓縮變扁 */
+    flex-shrink: 0; /* 💡 健檢優化：防止在 Flex 容器中因高度超限而被意外壓縮變扁 */
 }
 
 .lib-card:hover {
@@ -391,7 +394,7 @@ const saveLoadRecord = (exerciseId: string) => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.25rem 1.75rem;          /* 💡 PC 桌機端：加大且寬裕大氣的 padding */
+    padding: 1.25rem 1.75rem; /* 💡 PC 桌機端：加大且寬裕大氣的 padding */
     transition: all 0.25s ease;
     width: 100%;
 }
@@ -405,17 +408,17 @@ const saveLoadRecord = (exerciseId: string) => {
 .item-info {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;                       /* 💡 PC 桌機端：間距拉開，視覺更寬適 */
+    gap: 0.5rem; /* 💡 PC 桌機端：間距拉開，視覺更寬適 */
     flex: 1;
     min-width: 0;
     margin-right: 1.5rem;
 }
 
 .item-name {
-    font-size: 1.25rem;                /* 💡 PC 桌機端：超大字型，氣勢十足 */
-    font-weight: 800;                  /* 💡 PC 桌機端：加粗 */
-    color: #FFF;
-    word-break: break-word;            /* 💡 長名稱自動換行，絕不擠扁操作區 */
+    font-size: 1.25rem; /* 💡 PC 桌機端：超大字型，氣勢十足 */
+    font-weight: 800; /* 💡 PC 桌機端：加粗 */
+    color: #fff;
+    word-break: break-word; /* 💡 長名稱自動換行，絕不擠扁操作區 */
     line-height: 1.35;
 }
 
@@ -438,7 +441,7 @@ const saveLoadRecord = (exerciseId: string) => {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    font-size: 0.85rem;                /* 💡 PC 桌機端：常用負荷卡片字型放大 */
+    font-size: 0.85rem; /* 💡 PC 桌機端：常用負荷卡片字型放大 */
     font-weight: 700;
     color: var(--text-sub);
     background: rgba(255, 255, 255, 0.04);
@@ -465,7 +468,7 @@ const saveLoadRecord = (exerciseId: string) => {
 .item-actions {
     display: flex;
     align-items: center;
-    gap: 1rem;                         /* 💡 PC 桌機端：按鈕間距加寬 */
+    gap: 1rem; /* 💡 PC 桌機端：按鈕間距加寬 */
 }
 
 /* 編輯常用負荷按鈕 */
@@ -474,7 +477,7 @@ const saveLoadRecord = (exerciseId: string) => {
     border: none;
     color: var(--text-sub);
     cursor: pointer;
-    padding: 10px;                     /* 💡 PC 桌機端：點擊感厚實 */
+    padding: 10px; /* 💡 PC 桌機端：點擊感厚實 */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -483,7 +486,7 @@ const saveLoadRecord = (exerciseId: string) => {
 }
 
 .btn-edit-load:hover {
-    color: #FFF;
+    color: #fff;
     background: rgba(255, 255, 255, 0.08);
 }
 
@@ -493,58 +496,78 @@ const saveLoadRecord = (exerciseId: string) => {
     box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
 }
 
-.btn-quick-add {
-    color: var(--color-cyan);
-    transition: all 0.2s ease;
-}
-.btn-quick-add:hover {
-    color: #FFF;
-    filter: drop-shadow(0 0 8px var(--color-cyan));
-    transform: scale(1.08);
-}
-
-/* 💡 就地滑出的毛玻璃科技風編輯面板 (PC 端大尺寸) */
+/* 💡 就地滑出的毛玻璃科技風編輯面板 */
 .glass-edit-panel {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     background: rgba(8, 10, 16, 0.55);
     backdrop-filter: blur(15px);
-    padding: 1rem 1.75rem;
+    padding: 1rem 1.5rem;
     border-top: 1px solid rgba(255, 255, 255, 0.03);
-    gap: 2rem;
+    gap: 1.25rem;
 }
 
 .panel-steppers {
     display: flex;
-    gap: 2rem;
-    flex-grow: 1;
+    gap: 1.25rem;
+    flex: 1;
 }
 
 .stepper-group {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    flex: 1;
+    gap: 0.35rem;
 }
 
 .stepper-label {
-    font-size: 0.8rem;                 /* 💡 PC 桌機端：指示文字放大 */
+    font-size: 0.75rem;
     font-weight: 700;
     color: var(--text-muted);
     letter-spacing: 0.04em;
-    text-transform: uppercase;
 }
 
 .save-load-btn {
-    align-self: flex-end;
-    height: 42px;                      /* 💡 PC 桌機端：按鈕高度增加 */
-    padding: 0 2rem;
+    height: 38px;
+    padding: 0 1.25rem;
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.9rem;
+    justify-content: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
     box-shadow: 0 0 20px rgba(0, 240, 255, 0.35);
+    white-space: nowrap;
+    flex: 2;
+}
+
+/* 按鈕群組：清除 + 儲存並排 */
+.panel-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+    width: 210px;
+}
+
+.clear-load-btn {
+    height: 38px;
+    padding: 0 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    background: rgba(255, 74, 74, 0.06);
+    border: 1px solid rgba(255, 74, 74, 0.2);
+    color: rgba(255, 74, 74, 0.75);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+}
+.clear-load-btn:hover {
+    background: rgba(255, 74, 74, 0.12);
+    border-color: rgba(255, 74, 74, 0.4);
+    color: #ff4a4a;
 }
 
 /* 展開動畫 */
@@ -562,7 +585,7 @@ const saveLoadRecord = (exerciseId: string) => {
 /* 📱 手機網頁版/PWA 窄螢幕斷點適配 (max-width: 768px) */
 @media (max-width: 768px) {
     .quick-exercise-list {
-        max-height: none !important;    /* 💡 手機版：取消局部滾動高度限制，由整頁統一承載滑動，徹底防範任何高度擠壓 */
+        max-height: none !important;
     }
 
     .lib-card {
@@ -571,7 +594,7 @@ const saveLoadRecord = (exerciseId: string) => {
     }
 
     .lib-item-row {
-        padding: 0.85rem 1rem;          /* 💡 手機版：採用緊湊美觀的微間距，防擠壓 */
+        padding: 0.85rem 1rem;
     }
 
     .item-info {
@@ -580,7 +603,7 @@ const saveLoadRecord = (exerciseId: string) => {
     }
 
     .item-name {
-        font-size: 0.95rem;             /* 💡 手機版：動作名尺寸微調，100% 絕不跑版 */
+        font-size: 0.95rem;
         font-weight: 700;
     }
 
@@ -595,42 +618,43 @@ const saveLoadRecord = (exerciseId: string) => {
     }
 
     .load-record-display {
-        font-size: 0.68rem;             /* 💡 手機版：維持小字，保持整齊 */
+        font-size: 0.68rem;
         padding: 2px 8px;
     }
 
     .glass-edit-panel {
-        flex-direction: column;         /* 💡 手機版：垂直面板堆疊 */
+        flex-direction: column;
         align-items: stretch;
-        padding: 0.75rem 0.9rem;
-        gap: 0.85rem;
+        padding: 0.85rem 1rem;
+        gap: 0.75rem;
     }
 
     .panel-steppers {
-        flex-direction: column;         /* 💡 手機版：步進器垂直堆疊，100% 消除橫向擠壓跑版 */
+        flex-direction: column;
         gap: 0.65rem;
-        width: 100%;
     }
 
     .stepper-group {
-        flex-direction: row;            /* 💡 手機版：左側字，右側步進器，極致齊整對稱 */
-        justify-content: space-between;
+        flex-direction: row;
         align-items: center;
-        width: 100%;
-        gap: 1rem;
+        justify-content: space-between;
+        gap: 0.75rem;
     }
 
     .stepper-label {
-        font-size: 0.7rem;
-        margin-bottom: 0;
+        font-size: 0.75rem;
+        flex-shrink: 0;
+        min-width: 60px;
     }
 
-    .save-load-btn {
-        width: 100%;                    /* 💡 手機版：按鈕拉滿 100%，大拇指極易點擊 */
-        justify-content: center;
-        align-self: stretch;
-        margin-top: 0.25rem;
-        height: 38px;
+    /* 💡 手機版步進器：撐滿剩餘空間，不被壓縮 */
+    .stepper-group :deep(.stepper-input) {
+        max-width: none;
+        flex: 1;
+    }
+
+    .panel-actions {
+        width: 100%;
     }
 
     .item-actions {

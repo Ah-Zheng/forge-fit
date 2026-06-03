@@ -2,26 +2,26 @@
 import { ref, computed, watch, onMounted, onUnmounted, reactive } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWorkoutStore } from '../../../entities/workout'
+import { useDialogStore } from '../../../shared/ui/dialog/dialogStore'
 import {
     AlertCircle,
     Dumbbell,
     Trash2,
     Plus,
     Timer,
-    Play,
-    Pause,
     Sparkles,
     Check,
     Search,
     X,
     Scale,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    Lock
 } from '@lucide/vue'
 /** 💡 導入共享的型別定義 */
 import type { ExerciseSession, ExerciseDef } from '@forge-fit/types'
-/** 💡 導入我們在 packages/core 中實作的常用負荷更新服務 */
-import { updateExerciseLoadRecord } from '@forge-fit/core'
+/** 💡 導入我們在 packages/core 中實作的常用負荷更新服務與歷史紀錄檢查服務 */
+import { updateExerciseLoadRecord, hasWorkoutOnDate } from '@forge-fit/core'
 /** 💡 導入我們剛剛寫好的共享觸控步進器組件 (FSD 規範下的 shared/ui 層) */
 import { TactileStepper } from '../../../shared/ui/stepper'
 /** 💡 導入輕量級 Canvas 霓虹發光粒子雨引擎 */
@@ -31,6 +31,7 @@ import { useMediaQuery } from '../../../shared/lib/useMediaQuery'
 const isMobile = useMediaQuery('(max-width: 768px)')
 
 const store = useWorkoutStore()
+const dialogStore = useDialogStore()
 const { todaySession, exercisesLibrary, isLoggerDrawerOpen } = storeToRefs(store)
 
 // 💡 用 reactive 模擬 props 物件，達成 100% 模板相容，完全不需改動 template 程式碼！
@@ -53,6 +54,11 @@ const emit = (event: string, ...args: any[]) => {
 // 💡 監聽 Pinia 全局 isLoggerDrawerOpen，實現中央大 + 號點擊時打開抽屜的連動
 watch(isLoggerDrawerOpen, newVal => {
     if (newVal) {
+        if (props.session.completed) {
+            isLoggerDrawerOpen.value = false
+            dialogStore.alert('本日訓練已圓滿結束並封存，無法再新增動作。如需修改，請先至看板控制台解鎖編輯。', '訓練已結束', { type: 'warning' })
+            return
+        }
         isDrawerOpen.value = true
         isLoggerDrawerOpen.value = false // 自動重置以利下次觸發
     }
@@ -69,16 +75,9 @@ const getTodayDateString = () => {
 const todayDateStr = ref(getTodayDateString())
 const isToday = computed(() => props.session.date === todayDateStr.value)
 
-// 💡 判斷過去的某個日期是否有重訓紀錄 (供週曆時光條點亮點使用)
-const hasWorkoutOnDate = (dateStr: string) => {
-    const item = localStorage.getItem(`workout:${dateStr}`)
-    if (!item) return false
-    try {
-        const session = JSON.parse(item)
-        return session.exercises && session.exercises.length > 0
-    } catch {
-        return false
-    }
+/** 💡 安全跨瀏覽器解析 YYYY-MM-DD 為本地時間的 Date 物件，避免時區偏置坑 */
+const parseLocalDate = (dateStr: string) => {
+    return new Date(dateStr.replace(/-/g, '/'))
 }
 
 // 💡 月曆時光軸刷新觸發 Ref
@@ -95,14 +94,14 @@ watch(
 const isCalendarExpanded = ref(false)
 
 // 💡 當前月曆所展示與切換的基準月份 (預設與當前 session.date 對齊)
-const currentMonth = ref<Date>(new Date(props.session.date))
+const currentMonth = ref<Date>(parseLocalDate(props.session.date))
 
 // 💡 深度監聽外部 props.session.date 變化，自動校正當前展示月份
 watch(
     () => props.session.date,
     newDate => {
         if (newDate) {
-            currentMonth.value = new Date(newDate)
+            currentMonth.value = parseLocalDate(newDate)
         }
     },
     { immediate: true }
@@ -110,7 +109,7 @@ watch(
 
 // 💡 週曆計算子方法：計算當前選中日期所在的這一週（週一到週日，共 7 天）
 const getWeeklyDays = () => {
-    const current = new Date(props.session.date)
+    const current = parseLocalDate(props.session.date)
     const dayOfWeek = current.getDay()
     // 星期日則往前移 6 天，其餘往前移 dayOfWeek - 1 天，以此找出週一基準點
     const distanceToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
@@ -227,7 +226,7 @@ const shiftMonth = (months: number) => {
 
 // 💡 以週為單位切換 (在週曆收合狀態下使用)
 const shiftWeek = (weeks: number) => {
-    const current = new Date(props.session.date)
+    const current = parseLocalDate(props.session.date)
     current.setDate(current.getDate() + weeks * 7)
     const yyyy = current.getFullYear()
     const mm = String(current.getMonth() + 1).padStart(2, '0')
@@ -240,7 +239,7 @@ const calendarTitle = computed(() => {
     if (!isMobile.value || isCalendarExpanded.value) {
         return `${currentMonth.value.getFullYear()}年 ${currentMonth.value.getMonth() + 1}月`
     } else {
-        const d = new Date(props.session.date)
+        const d = parseLocalDate(props.session.date)
         return `${d.getFullYear()}年 ${d.getMonth() + 1}月`
     }
 })
@@ -248,8 +247,16 @@ const calendarTitle = computed(() => {
 // 💡 一鍵快速回到今天 (Today Quick Return)
 const goToToday = () => {
     const today = getTodayDateString()
-    currentMonth.value = new Date(today)
+    currentMonth.value = parseLocalDate(today)
     emit('changeDate', today)
+}
+
+// 💡 點擊日期卡片的處理方法：若點選非當前月份日期，主動同步切換基準月份
+const selectDate = (day: { dateStr: string; isCurrentMonth: boolean }) => {
+    emit('changeDate', day.dateStr)
+    if (!day.isCurrentMonth) {
+        currentMonth.value = parseLocalDate(day.dateStr)
+    }
 }
 
 /** 已同步的動作 ID 狀態快取，供綠色 ✓ 反饋動畫使用 */
@@ -290,6 +297,7 @@ const isExerciseAlreadyAdded = (exerciseId: string) => {
 
 // 抽屜內點選新增動作
 const handleAddExerciseFromDrawer = (ex: ExerciseDef) => {
+    if (props.session.completed) return // 🔒 已結束/封存
     const exists = props.session.exercises.some(e => e.exerciseId === ex.id)
     if (!exists) {
         const defaultWeight = typeof ex.targetWeight === 'number' ? ex.targetWeight : 40
@@ -389,6 +397,7 @@ const checkIfOverloadBreakthrough = (ex: ExerciseSession) => {
  * 一鍵收割突破紀錄：同步寫入本地資料庫並通知頂層刷新
  */
 const syncOverloadRecord = (ex: ExerciseSession) => {
+    if (props.session.completed) return // 🔒 已結束/封存
     const check = checkIfOverloadBreakthrough(ex)
     if (!check.isBreakthrough) return
 
@@ -407,23 +416,19 @@ const syncOverloadRecord = (ex: ExerciseSession) => {
     }, 2000)
 }
 
-/** 今日已累積鍛鍊的基準總秒數（截至上一次暫停為止） */
-const secondsElapsed = ref(0)
 
-/** 💡 用於顯示與保存的當前動態秒數（包含基準秒數與當前跑秒差值） */
-const liveSeconds = ref(0)
-
-/** 運動秒錶計時器是否處於跑秒運行狀態 */
-const isTimerActive = ref(false)
-
-/** JavaScript 原生 setInterval 計時器 ID */
-let timerIntervalId: number | null = null
 
 /**
  * 刪除整組運動動作的處理邏輯
  */
-const handleDeleteExercise = (index: number) => {
-    if (confirm('確定要移除此動作與所有組數紀錄嗎？')) {
+const handleDeleteExercise = async (index: number) => {
+    if (props.session.completed) return // 🔒 已結束/封存
+    const confirmDelete = await dialogStore.confirm(
+        '確定要移除此動作與所有組數紀錄嗎？移除後資料將無法復原。',
+        '確認移除動作',
+        { type: 'danger', confirmText: '確定移除', cancelText: '取消' }
+    )
+    if (confirmDelete) {
         // 透過直接突變陣列，App.vue 中的 deep watch 會立即感知並自動存檔 LocalStorage！
         props.session.exercises.splice(index, 1)
     }
@@ -433,6 +438,7 @@ const handleDeleteExercise = (index: number) => {
  * 刪除單一組數的處理邏輯
  */
 const handleDeleteSet = (exercise: ExerciseSession, setIdx: number) => {
+    if (props.session.completed) return // 🔒 已結束/封存
     exercise.sets.splice(setIdx, 1)
 }
 
@@ -441,6 +447,7 @@ const handleDeleteSet = (exercise: ExerciseSession, setIdx: number) => {
  * 新增組數時，自動複製上一組的重量與次數，免去手動重複調整的麻煩。
  */
 const handleAddSet = (exercise: ExerciseSession) => {
+    if (props.session.completed) return // 🔒 已結束/封存
     const setsCount = exercise.sets.length
     let defaultWeight = 40
     let defaultReps = 10
@@ -512,92 +519,16 @@ const confettiCanvas = ref<HTMLCanvasElement | null>(null)
 let confettiEngine: NeonConfetti | null = null
 
 /**
- * ⚡ 時間戳動態同步方法：計算從開始跑秒至今的差值，一次性補償背景時間 (如切換到桌面、螢幕睡眠)
- */
-const syncLiveTime = () => {
-    if (isTimerActive.value && props.session.timerStartedAt) {
-        const diff = Math.floor((Date.now() - props.session.timerStartedAt) / 1000)
-        liveSeconds.value = secondsElapsed.value + diff
-    } else {
-        liveSeconds.value = secondsElapsed.value
-    }
-    updateSessionDuration()
-}
-
-/**
- * 核心方法：微秒級將當前秒數轉換為分鐘數，同步更新回資料庫結構中
- */
-const updateSessionDuration = () => {
-    props.session.duration = Math.round(liveSeconds.value / 60)
-    props.session.secondsElapsed = liveSeconds.value
-    props.session.isTimerActive = isTimerActive.value
-}
-
-/**
- * 啟動運動計時秒錶 (自動跑秒)
- */
-const startTimer = () => {
-    if (timerIntervalId) return
-    isTimerActive.value = true
-    props.session.isTimerActive = true
-
-    // 💡 如果之前沒有基準開始時間戳，就設定為當下
-    if (!props.session.timerStartedAt) {
-        props.session.timerStartedAt = Date.now()
-    }
-
-    syncLiveTime()
-
-    timerIntervalId = window.setInterval(() => {
-        syncLiveTime()
-    }, 1000)
-}
-
-/**
- * 暫停運動計時秒錶
- */
-const pauseTimer = () => {
-    if (timerIntervalId) {
-        window.clearInterval(timerIntervalId)
-        timerIntervalId = null
-    }
-
-    // 💡 將當前正在跑秒的差值正式收割、累加到基準秒數 secondsElapsed 中
-    if (isTimerActive.value && props.session.timerStartedAt) {
-        const diff = Math.floor((Date.now() - props.session.timerStartedAt) / 1000)
-        secondsElapsed.value += diff
-    }
-
-    isTimerActive.value = false
-    props.session.isTimerActive = false
-    props.session.timerStartedAt = undefined
-
-    liveSeconds.value = secondsElapsed.value
-    updateSessionDuration()
-}
-
-/**
  * 快捷微調運動時長 (例如加減 5 分鐘)
  * @param minutes 調整的分鐘差值 (如 -5 或 5)
  */
 const adjustDuration = (minutes: number) => {
-    const newSeconds = secondsElapsed.value + minutes * 60
-    secondsElapsed.value = Math.max(0, newSeconds)
-    syncLiveTime()
-}
-
-/** 💡 格式化已耗費時長為 hh:mm:ss 霓虹跑秒字串 */
-const formattedDuration = computed(() => {
-    const hrs = Math.floor(liveSeconds.value / 3600)
-    const mins = Math.floor((liveSeconds.value % 3600) / 60)
-    const secs = liveSeconds.value % 60
-    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-})
-
-// 💡 監聽網頁前台/背景切換事件，當切回前台時，一瞬間補償在背景(如桌面、關閉螢幕)度過的時間差
-const handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible') {
-        syncLiveTime()
+    if (props.session.completed) return // 🔒 已結束/封存
+    if (isToday.value) {
+        store.adjustGlobalDuration(minutes)
+    } else {
+        props.session.duration = Math.max(0, (props.session.duration || 0) + minutes)
+        props.session.secondsElapsed = props.session.duration * 60
     }
 }
 
@@ -605,56 +536,11 @@ onMounted(() => {
     if (confettiCanvas.value) {
         confettiEngine = new NeonConfetti(confettiCanvas.value)
     }
-
-    // 💡 優先從今日已保存的 session 中還原基準時長，並利用純數學公式反推還原 secondsElapsed
-    if (typeof props.session.secondsElapsed === 'number') {
-        const savedSeconds = props.session.secondsElapsed
-        const wasActive =
-            props.session.isTimerActive !== undefined ? props.session.isTimerActive : false
-
-        if (wasActive && props.session.timerStartedAt) {
-            const diff = Math.floor((Date.now() - props.session.timerStartedAt) / 1000)
-            secondsElapsed.value = Math.max(0, savedSeconds - diff)
-        } else {
-            secondsElapsed.value = savedSeconds
-            props.session.timerStartedAt = undefined
-        }
-    } else {
-        secondsElapsed.value = (props.session.duration || 0) * 60
-    }
-
-    // 💡 監聽行動端切桌面、關螢幕的 Visibility API
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-
-    // 💡 載入先前切換頁面時的播放狀態，若為今天的重訓且切換前 active 則啟動
-    const todayStr = new Date().toISOString().split('T')[0]
-    if (props.session.date === todayStr) {
-        const wasActive =
-            props.session.isTimerActive !== undefined ? props.session.isTimerActive : false
-        if (wasActive) {
-            startTimer()
-        } else {
-            isTimerActive.value = false
-            syncLiveTime()
-        }
-    } else {
-        isTimerActive.value = false
-        syncLiveTime()
-    }
 })
 
 onUnmounted(() => {
     if (confettiEngine) {
         confettiEngine.destroy()
-    }
-    document.removeEventListener('visibilitychange', handleVisibilityChange)
-
-    // 💡 健檢優化：僅清除定時器間隔，不可呼叫 pauseTimer()！
-    // 這樣能將 isTimerActive = true 與基準時間戳完整保留在 LocalStorage 中，
-    // 確保使用者切換分頁、重新整理、或重啟 PWA 時，離線背景計時器能平滑地利用時間戳差進行一次性補償。
-    if (timerIntervalId) {
-        window.clearInterval(timerIntervalId)
-        timerIntervalId = null
     }
 })
 
@@ -676,45 +562,7 @@ watch(isAllCompleted, newVal => {
     }
 })
 
-/** 💡 深度監聽日期變動，當使用者在頂部切換日期時，完美重置秒錶與其餘狀態 */
-watch(
-    () => props.session.date,
-    newDate => {
-        pauseTimer()
-        // 重新校正對應日期的已儲存時長
-        if (typeof props.session.secondsElapsed === 'number') {
-            const savedSeconds = props.session.secondsElapsed
-            const wasActive =
-                props.session.isTimerActive !== undefined ? props.session.isTimerActive : false
 
-            if (wasActive && props.session.timerStartedAt) {
-                const diff = Math.floor((Date.now() - props.session.timerStartedAt) / 1000)
-                secondsElapsed.value = Math.max(0, savedSeconds - diff)
-            } else {
-                secondsElapsed.value = savedSeconds
-                props.session.timerStartedAt = undefined
-            }
-        } else {
-            secondsElapsed.value = (props.session.duration || 0) * 60
-        }
-
-        // 僅在切換回「今天」時自動跑秒（或根據已記錄的狀態）；補記歷史日誌則預設維持暫停狀態
-        const todayStr = new Date().toISOString().split('T')[0]
-        if (newDate === todayStr) {
-            const wasActive =
-                props.session.isTimerActive !== undefined ? props.session.isTimerActive : false
-            if (wasActive) {
-                startTimer()
-            } else {
-                isTimerActive.value = false
-                syncLiveTime()
-            }
-        } else {
-            isTimerActive.value = false
-            syncLiveTime()
-        }
-    }
-)
 
 /** 💡 當前展開的動作卡片 ID (若為 null 則代表全部折疊，一次僅能展開一組動作) */
 const expandedExerciseId = ref<string | null>(null)
@@ -749,10 +597,60 @@ const getSetsSummary = (ex: ExerciseSession) => {
 
     return `${setsCount} 組 · ${weightStr} · ${repsStr}`
 }
+
+// 💡 觸控左右滑動手勢偵測：實現滑動切換月份/週功能
+let touchStartX = 0
+let touchStartY = 0
+
+const handleTouchStart = (e: TouchEvent) => {
+    if (e.touches && e.touches.length > 0) {
+        touchStartX = e.touches[0].clientX
+        touchStartY = e.touches[0].clientY
+    }
+}
+
+const handleTouchEnd = (e: TouchEvent) => {
+    if (!e.changedTouches || e.changedTouches.length === 0) return
+
+    const touchEndX = e.changedTouches[0].clientX
+    const touchEndY = e.changedTouches[0].clientY
+
+    const diffX = touchEndX - touchStartX
+    const diffY = touchEndY - touchStartY
+
+    // 水平滑動閾值 50px，且水平傾斜度需大於垂直滑動 1.5 倍以避免上下滾動時誤觸
+    if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
+        if (diffX < 0) {
+            // 向左滑：看下一個月 / 下一週
+            if (!isMobile.value || isCalendarExpanded.value) {
+                shiftMonth(1)
+            } else {
+                shiftWeek(1)
+            }
+        } else {
+            // 向右滑：看上一個月 / 上一週
+            if (!isMobile.value || isCalendarExpanded.value) {
+                shiftMonth(-1)
+            } else {
+                shiftWeek(-1)
+            }
+        }
+    }
+}
 </script>
 
 <template>
     <div class="logger-page-wrapper" style="animation: fadeInUp 0.4s ease forwards">
+        <!-- 🔒 本日訓練已結束/封存通知 -->
+        <div v-if="props.session.completed" class="workout-completed-notice full-width glass-card">
+            <Lock :size="16" class="text-warning" />
+            <span class="notice-text">
+                本日訓練已結束並封存。如需新增或修改紀錄，請先至
+                <router-link to="/" class="btn-goto-dashboard">看板控制台</router-link>
+                解鎖編輯。
+            </span>
+        </div>
+
         <!-- 💡 左側控制面板 (月曆 + 計時器) -->
         <div class="logger-left-column">
             <!-- 💡 區塊 1.2：Moze 記帳風：頂部可摺疊式時光日曆網格 (Collapsible Grid Calendar Bar) -->
@@ -760,6 +658,8 @@ const getSetsSummary = (ex: ExerciseSession) => {
                 class="weekly-calendar-bar monthly-calendar-bar glass-card"
                 :class="{ 'is-collapsed': isMobile && !isCalendarExpanded }"
                 style="animation: fadeIn 0.3s ease"
+                @touchstart="handleTouchStart"
+                @touchend="handleTouchEnd"
             >
                 <!-- 月份切換與摺疊狀態標題 -->
                 <div class="calendar-header-row">
@@ -819,7 +719,7 @@ const getSetsSummary = (ex: ExerciseSession) => {
                             'not-current-month':
                                 (!isMobile || isCalendarExpanded) && !day.isCurrentMonth
                         }"
-                        @click="emit('changeDate', day.dateStr)"
+                        @click="selectDate(day)"
                     >
                         <span class="day-num">{{ day.dayNum }}</span>
                         <!-- 發光訓練指示點 -->
@@ -839,73 +739,33 @@ const getSetsSummary = (ex: ExerciseSession) => {
                 </div>
             </div>
 
-            <!-- 💡 區塊 1.8：毛玻璃科技風時長主控條 (Glassmorphic Timer Bar) -->
-            <div class="timer-control-bar glass-card" style="animation: fadeIn 0.3s ease">
-                <div class="timer-left-group">
-                    <div class="timer-icon-container" :class="{ 'timer-spinning': isTimerActive }">
-                        <Timer
-                            :size="18"
-                            class="text-cyan"
-                            style="filter: drop-shadow(0 0 3px var(--color-cyan))"
-                        />
-                    </div>
-                    <div class="timer-label-group">
-                        <div style="display: flex; align-items: center; gap: 0.5rem">
-                            <span class="timer-title">本日鍛鍊時長</span>
-                            <span
-                                class="workout-status-badge"
-                                style="
-                                    font-size: 0.6rem;
-                                    padding: 2px 6px;
-                                    border-radius: 4px;
-                                    display: inline-flex;
-                                    align-items: center;
-                                "
-                                >鍛鍊中</span
-                            >
-                        </div>
-                        <span class="timer-countdown">{{ formattedDuration }}</span>
-                    </div>
+            <!-- 💡 區塊 1.8：極簡時長顯示與微調 (極致瘦身版) -->
+            <div class="minimal-duration-bar glass-card">
+                <div class="duration-left">
+                    <Timer
+                        :size="14"
+                        class="text-cyan timer-icon"
+                    />
+                    <span class="duration-label">已鍛鍊：</span>
+                    <span class="duration-value">{{ props.session.duration || 0 }} 分鐘</span>
                 </div>
-
-                <div class="timer-actions-group">
-                    <!-- 暫停 / 開始按鈕 -->
+                <div class="duration-right">
                     <button
-                        v-if="isTimerActive"
-                        class="btn-timer btn-timer-pause"
-                        title="暫停計時"
-                        @click="pauseTimer"
+                        class="btn-duration-step"
+                        title="減少 5 分鐘"
+                        :disabled="props.session.completed"
+                        @click="adjustDuration(-5)"
                     >
-                        <Pause :size="14" />
-                        <span>暫停</span>
+                        -5m
                     </button>
                     <button
-                        v-else
-                        class="btn-timer btn-timer-play"
-                        title="開始計時"
-                        @click="startTimer"
+                        class="btn-duration-step"
+                        title="增加 5 分鐘"
+                        :disabled="props.session.completed"
+                        @click="adjustDuration(5)"
                     >
-                        <Play :size="14" />
-                        <span>開始</span>
+                        +5m
                     </button>
-
-                    <!-- 手動微調時長按鈕 (以 5 分鐘為單位) -->
-                    <div class="timer-stepper-group">
-                        <button
-                            class="btn-timer-step"
-                            title="減少 5 分鐘"
-                            @click="adjustDuration(-5)"
-                        >
-                            -5m
-                        </button>
-                        <button
-                            class="btn-timer-step"
-                            title="增加 5 分鐘"
-                            @click="adjustDuration(5)"
-                        >
-                            +5m
-                        </button>
-                    </div>
                 </div>
             </div>
             <!-- 💡 左側控制面板結束 -->
@@ -961,6 +821,15 @@ const getSetsSummary = (ex: ExerciseSession) => {
                     }"
                     style="margin-bottom: 1.5rem; animation: fadeInUp 0.3s ease forwards"
                 >
+                    <!-- 💡 特價傳單風的尖刺黃金突破徽章 (右上角絕對定位) -->
+                    <div
+                        v-if="checkIfOverloadBreakthrough(ex).isBreakthrough"
+                        class="spiky-breakthrough-badge"
+                        title="今日此項目已突破常用負荷紀錄！"
+                    >
+                        <span>突破</span>
+                    </div>
+
                     <!-- 動作卡片頭部資訊 (點選主要區域可展開/折疊) -->
                     <div
                         class="exercise-header"
@@ -975,7 +844,7 @@ const getSetsSummary = (ex: ExerciseSession) => {
                                 <Dumbbell :size="16" class="text-cyan" />
                             </div>
                             <div style="flex: 1; min-width: 0">
-                                <!-- 第一行：器材名稱 平行 分類標籤 與 突破標記 -->
+                                <!-- 第一行：器材名稱 平行 分類標籤 -->
                                 <div
                                     style="
                                         display: flex;
@@ -996,18 +865,9 @@ const getSetsSummary = (ex: ExerciseSession) => {
                                             ex.muscle.toUpperCase()
                                         }})
                                     </span>
-                                    <!-- 💡 突破標記：只要有突破，都在頭部右側高亮顯示 -->
-                                    <span
-                                        v-if="checkIfOverloadBreakthrough(ex).isBreakthrough"
-                                        class="badge-overload-breakthrough"
-                                        title="今日此項目已突破常用負荷紀錄！"
-                                    >
-                                        <Sparkles :size="10" />
-                                        <span>🔥 突破超負荷</span>
-                                    </span>
                                 </div>
 
-                                <!-- 第二行：顯示 器材數據(折疊時) + 完成數量統計(常駐，自然挨著數據) -->
+                                <!-- 第二行：顯示 器材數據 + 完成數量統計 (並排在同一行) -->
                                 <div
                                     style="
                                         margin-top: 0.35rem;
@@ -1015,6 +875,7 @@ const getSetsSummary = (ex: ExerciseSession) => {
                                         display: flex;
                                         align-items: center;
                                         gap: 0.5rem;
+                                        flex-wrap: wrap;
                                         width: 100%;
                                     "
                                 >
@@ -1037,13 +898,13 @@ const getSetsSummary = (ex: ExerciseSession) => {
                                     >
                                         完成 {{ ex.sets.filter(s => s.completed).length }}/{{
                                             ex.sets.length
-                                        }}
+                                        }}組
                                     </span>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- 右側操作區：僅 Chevron 指示圖示 -->
+                        <!-- 右側操作區：極簡 Chevron 指示圖示 (引導使用者點擊展開，解決引導痛點) -->
                         <div
                             style="
                                 display: flex;
@@ -1060,9 +921,9 @@ const getSetsSummary = (ex: ExerciseSession) => {
                             >
                                 <ChevronDown
                                     v-if="expandedExerciseId !== ex.exerciseId"
-                                    :size="16"
+                                    :size="14"
                                 />
-                                <ChevronUp v-else :size="16" />
+                                <ChevronUp v-else :size="14" />
                             </span>
                         </div>
                     </div>
@@ -1096,14 +957,14 @@ const getSetsSummary = (ex: ExerciseSession) => {
                                 <span class="set-num">{{ setIdx + 1 }}</span>
 
                                 <!-- 🏋️‍♂️ 重量步進器：每點一下加減 2.5 kg -->
-                                <TactileStepper v-model="set.weight" :step="2.5" :disabled="set.completed" />
+                                <TactileStepper v-model="set.weight" :step="2.5" :disabled="set.completed || props.session.completed" />
 
                                 <!-- 🔢 次數步進器：每點一下加減 1 下 -->
-                                <TactileStepper v-model="set.reps" :step="1" :disabled="set.completed" />
+                                <TactileStepper v-model="set.reps" :step="1" :disabled="set.completed || props.session.completed" />
 
                                 <!-- 核取狀態 Checkbox -->
                                 <label class="checkbox-container">
-                                    <input v-model="set.completed" type="checkbox" />
+                                    <input v-model="set.completed" type="checkbox" :disabled="props.session.completed" />
                                     <span class="checkmark"></span>
                                 </label>
 
@@ -1111,19 +972,8 @@ const getSetsSummary = (ex: ExerciseSession) => {
                                 <button
                                     type="button"
                                     class="btn-icon delete-set-btn"
-                                    :disabled="set.completed"
+                                    :disabled="set.completed || props.session.completed"
                                     title="刪除此組"
-                                    :style="{
-                                        color: 'var(--text-muted)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        width: '100%',
-                                        height: '100%',
-                                        cursor: set.completed ? 'not-allowed' : 'pointer',
-                                        opacity: set.completed ? 0.35 : 1,
-                                        pointerEvents: set.completed ? 'none' : 'auto'
-                                    }"
                                     @click="handleDeleteSet(ex, setIdx)"
                                 >
                                     <Trash2 :size="14" />
@@ -1146,6 +996,7 @@ const getSetsSummary = (ex: ExerciseSession) => {
                             <div class="logger-action-buttons-group">
                                 <button
                                     class="btn btn-secondary btn-sm"
+                                    :disabled="props.session.completed"
                                     style="
                                         display: flex;
                                         align-items: center;
@@ -1156,10 +1007,11 @@ const getSetsSummary = (ex: ExerciseSession) => {
                                 >
                                     <Plus :size="14" /> 新增組數
                                 </button>
-
+ 
                                 <button
                                     class="btn btn-delete-exercise btn-sm"
                                     title="移除此訓練器材動作與所有組數紀錄"
+                                    :disabled="props.session.completed"
                                     style="
                                         display: flex;
                                         align-items: center;
@@ -1171,7 +1023,7 @@ const getSetsSummary = (ex: ExerciseSession) => {
                                     <Trash2 :size="12" /> 移除此動作
                                 </button>
                             </div>
-
+ 
                             <!-- 右側：智慧超負荷同步按鈕 -->
                             <div
                                 style="
@@ -1183,7 +1035,7 @@ const getSetsSummary = (ex: ExerciseSession) => {
                             >
                                 <template v-if="checkIfOverloadBreakthrough(ex).alreadySynced">
                                     <span class="synced-badge">
-                                        <Check :size="12" /> 已同步常用負荷
+                                        <Check :size="12" /> 已更新為預設重量
                                     </span>
                                 </template>
                                 <template
@@ -1191,7 +1043,8 @@ const getSetsSummary = (ex: ExerciseSession) => {
                                 >
                                     <button
                                         class="btn-sync-overload"
-                                        title="將此挑戰重量與次數同步為動作百科常用負荷"
+                                        title="將此挑戰新紀錄更新為此動作的預設重量"
+                                        :disabled="props.session.completed"
                                         style="
                                             display: flex;
                                             align-items: center;
@@ -1201,7 +1054,7 @@ const getSetsSummary = (ex: ExerciseSession) => {
                                         @click="syncOverloadRecord(ex)"
                                     >
                                         <Sparkles :size="12" />
-                                        <span>同步為常用負荷</span>
+                                        <span>將突破紀錄更新為預設重量</span>
                                     </button>
                                 </template>
                             </div>
@@ -1333,7 +1186,7 @@ const getSetsSummary = (ex: ExerciseSession) => {
     </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
 /* 頁面內部微調微排版，大部分沿用全域 style.css 的變數定義 */
 .logger-page-wrapper {
     display: flex;
@@ -1428,12 +1281,7 @@ const getSetsSummary = (ex: ExerciseSession) => {
         height: 5px !important;
     }
 
-    .calendar-day-card.is-today::after {
-        top: 5px !important;
-        right: 5px !important;
-        width: 4px !important;
-        height: 4px !important;
-    }
+
 }
 
 /* 💡 智慧超負荷同步按鈕樣式 */
@@ -1564,14 +1412,31 @@ pre {
 /* 🗑️ 刪除組數按鈕的滑鼠懸停微發光紅色效果 */
 .delete-set-btn {
     transition: var(--transition);
-}
-.delete-set-btn:hover {
-    color: var(--color-danger) !important;
-    filter: drop-shadow(0 0 4px var(--color-danger));
-    transform: scale(1.1);
-}
-.delete-set-btn:active {
-    transform: scale(0.9);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    opacity: 1;
+    pointer-events: auto;
+
+    &:hover:not(:disabled) {
+        color: var(--color-danger) !important;
+        filter: drop-shadow(0 0 4px var(--color-danger));
+        transform: scale(1.1);
+    }
+    
+    &:active:not(:disabled) {
+        transform: scale(0.9);
+    }
+
+    &:disabled {
+        cursor: not-allowed !important;
+        opacity: 0.35 !important;
+        pointer-events: none !important;
+    }
 }
 
 /* 💡 霓虹粒子雨畫布覆蓋：改為 fixed 全螢幕噴灑，視覺震撼感倍增 */
@@ -1599,6 +1464,7 @@ pre {
 
 /* 💡 當動作卡片內所有組數皆完成時，卡片外框亮起科技皇家藍霓虹發光呼吸燈 */
 .exercise-block {
+    position: relative;
     transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
     border: 1px solid var(--border-soft);
     border-radius: 12px;
@@ -2291,8 +2157,15 @@ pre {
 }
 
 .calendar-day-card.is-today {
-    background: rgba(255, 255, 255, 0.04);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 159, 10, 0.25) !important;
+}
+
+/* 今天的文字顏色在未被選中時呈現黃金橘，已被選中時則使用選中的極光青色 */
+.calendar-day-card.is-today:not(.is-selected) .day-num {
+    color: #ff9f0a !important;
+    font-weight: 800;
+    text-shadow: 0 0 5px rgba(255, 159, 10, 0.35);
 }
 
 /* 當天選中狀態：高亮極光青霓虹發光邊框與淡背景 */
@@ -2341,18 +2214,7 @@ pre {
     box-shadow: 0 0 4px var(--color-cyan);
 }
 
-/* 今天的小裝飾點 */
-.calendar-day-card.is-today::after {
-    content: '';
-    position: absolute;
-    top: 3px;
-    right: 3px;
-    width: 3px;
-    height: 3px;
-    background: var(--color-cyan);
-    border-radius: 50%;
-    box-shadow: 0 0 3px var(--color-cyan);
-}
+
 
 /* 月份導航按鈕 */
 .btn-calendar-nav {
@@ -2538,32 +2400,129 @@ pre {
 }
 
 /* 💡 突破漸進超負荷高能發光 Badge 樣式 */
-.badge-overload-breakthrough {
-    display: inline-flex;
+/* 💡 特價傳單風的尖刺黃金突破徽章 */
+.spiky-breakthrough-badge {
+    position: absolute;
+    top: -12px;
+    right: -10px;
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, #fee440 0%, #ffb703 100%);
+    color: #080a10;
+    font-size: 0.72rem;
+    font-weight: 900;
+    display: flex;
     align-items: center;
-    gap: 0.25rem;
-    font-size: 0.68rem;
-    font-weight: 800;
-    color: #fee440 !important;
-    background: rgba(254, 228, 64, 0.08) !important;
-    border: 1px solid rgba(254, 228, 64, 0.3) !important;
-    border-radius: 4px;
-    padding: 2px 6px;
-    letter-spacing: 0.02em;
-    filter: drop-shadow(0 0 5px rgba(254, 228, 64, 0.2));
-    animation: pulseGlowGold 2s infinite ease-in-out;
+    justify-content: center;
+    letter-spacing: -0.02em;
+    clip-path: polygon(
+        50% 0%, 61% 15%, 80% 10%, 80% 29%, 100% 33%, 
+        89% 50%, 100% 67%, 80% 71%, 80% 90%, 61% 85%, 
+        50% 100%, 39% 85%, 20% 90%, 20% 71%, 0% 67%, 
+        11% 50%, 0% 33%, 20% 29%, 20% 10%, 39% 15%
+    );
+    z-index: 10;
+    transform: rotate(-10deg);
+    animation: starburstPulse 1.8s infinite alternate ease-in-out;
+    pointer-events: none;
 }
 
-@keyframes pulseGlowGold {
-    0%,
-    100% {
-        box-shadow: 0 0 4px rgba(254, 228, 64, 0.15);
-        border-color: rgba(254, 228, 64, 0.3);
+@keyframes starburstPulse {
+    0% {
+        transform: rotate(-12deg) scale(0.96);
+        filter: drop-shadow(0 0 5px rgba(254, 228, 64, 0.45));
     }
-    50% {
-        box-shadow: 0 0 12px rgba(254, 228, 64, 0.35);
-        border-color: rgba(254, 228, 64, 0.6);
-        background: rgba(254, 228, 64, 0.12) !important;
+    100% {
+        transform: rotate(-6deg) scale(1.08);
+        filter: drop-shadow(0 0 15px rgba(254, 228, 64, 0.75));
+    }
+}
+
+.minimal-duration-bar {
+    animation: fadeIn 0.3s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.65rem 1rem;
+    border: 1px dashed rgba(0, 240, 255, 0.15);
+    border-radius: 10px;
+    gap: 0.5rem;
+    background: rgba(255, 255, 255, 0.01);
+
+    .duration-left {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        .timer-icon {
+            filter: drop-shadow(0 0 3px var(--color-cyan));
+        }
+
+        .duration-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 700;
+        }
+
+        .duration-value {
+            font-size: 0.85rem;
+            font-weight: 800;
+            color: var(--color-cyan);
+            font-family: 'Outfit', 'Inter', sans-serif;
+        }
+    }
+
+    .duration-right {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+
+        .btn-duration-step {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            color: var(--text-sub);
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 0.72rem;
+            cursor: pointer;
+            transition: all 0.2s;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.08);
+                color: #fff;
+                border-color: rgba(255, 255, 255, 0.15);
+            }
+        }
+    }
+}
+
+.workout-completed-notice {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.85rem 1.25rem;
+    border: 1px solid rgba(255, 183, 3, 0.25) !important;
+    background: rgba(255, 183, 3, 0.04) !important;
+    border-radius: 12px;
+    animation: fadeIn 0.3s ease;
+    margin-bottom: 0.5rem;
+
+    .notice-text {
+        font-size: 0.85rem;
+        color: var(--text-sub);
+        font-weight: 700;
+
+        .btn-goto-dashboard {
+            color: var(--color-cyan);
+            text-decoration: underline;
+            font-weight: 800;
+            margin: 0 0.25rem;
+
+            &:hover {
+                color: #fff;
+            }
+        }
     }
 }
 </style>

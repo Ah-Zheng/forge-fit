@@ -47,6 +47,8 @@ export interface WorkoutSession {
     isTimerActive?: boolean
     /** 💡 當前這段計時跑秒開始的時間戳記 (用於防禦手機切桌面關螢幕的背景時間補償) */
     timerStartedAt?: number
+    /** 💡 本日訓練是否已結束/封存 (終止後限制修改) */
+    completed?: boolean
 }
 
 /**

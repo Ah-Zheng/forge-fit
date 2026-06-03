@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useWorkoutStore } from '../../../entities/workout'
+import { useDialogStore } from '../../../shared/ui/dialog/dialogStore'
 import {
     Cloud,
     CloudLightning,
@@ -29,6 +30,7 @@ const storage: Storage =
 
 // 💡 引入 Pinia 全局狀態
 const store = useWorkoutStore()
+const dialogStore = useDialogStore()
 const {
     accessToken,
     isLinked,
@@ -242,15 +244,20 @@ const startSandboxMode = () => {
 /**
  * 解除 Google 帳號綁定並清除本地快取之 Access Token 與用戶資料 (支援二次彈窗雙軌選擇)
  */
-const handleDisconnect = (confirmRequired: boolean | any = true) => {
+const handleDisconnect = async (confirmRequired: boolean | any = true) => {
     const isConfirmNeeded = confirmRequired === false ? false : true
     if (isConfirmNeeded) {
-        if (!confirm('確定要解除 Google 雲端帳號連結嗎？')) {
-            return
-        }
+        const confirmDisc = await dialogStore.confirm(
+            '確定要解除 Google 雲端帳號連結嗎？',
+            '解除雲端連結',
+            { type: 'warning' }
+        )
+        if (!confirmDisc) return
 
-        const shouldWipeLocal = confirm(
-            '⚠️ 您要一併「清空本機的所有重訓日誌紀錄」嗎？\n\n- 點選 [確定]：將同步抹除本地日誌與雲端連結（徹底重置）。\n- 點選 [取消]：僅解除 Google 帳號連結，本地重訓日誌依舊安全保留。'
+        const shouldWipeLocal = await dialogStore.confirm(
+            '⚠️ 您要一併「清空本機的所有重訓日誌紀錄」嗎？\n\n- 確定：將同步抹除本地日誌與雲端連結（徹底重置）。\n- 取消：僅解除連結，本地重訓日誌依舊安全保留。',
+            '清空本地紀錄？',
+            { type: 'danger', confirmText: '確定清空', cancelText: '保留紀錄' }
         )
 
         store.disconnectGoogle(shouldWipeLocal)
@@ -270,18 +277,22 @@ const handleUploadSync = async () => {
             triggerCelebrate(80)
 
             if (isMockMode.value) {
-                alert(
-                    '💡 沙盒同步模擬成功！\n（⚠️ 注意：當前在沙盒模式下，資料僅加密暫存於本地快取，並未真正上傳至 Google 雲端硬碟！）'
+                await dialogStore.alert(
+                    '💡 沙盒同步模擬成功！\n（⚠️ 注意：當前在沙盒模式下，資料僅加密暫存於本地快取，並未真正上傳至 Google 雲端硬碟！）',
+                    '模擬備份成功',
+                    { type: 'warning' }
                 )
             } else {
-                alert(
-                    '🎉 雲端備份成功！\n\n您的重訓歷史資料已安全備份至 Google Drive 的專屬應用程式隱密區 (AppData Folder)。\n\n💡 為了防範您不小心在 Google Drive 網頁上將備份 JSON 檔誤刪，Google 預設將此專區隱藏。雖然您在雲端硬碟網頁上看不到此檔案，但本 App 隨時可以完美為您下載還原！'
+                await dialogStore.alert(
+                    '您的重訓歷史資料已安全備份至 Google Drive 的專屬應用程式隱密區 (AppData Folder)。\n\n💡 為了防範您不小心在 Google Drive 網頁上將備份 JSON 檔誤刪，Google 預設將此專區隱藏。雖然您在雲端硬碟網頁上看不到此檔案，但本 App 隨時可以完美為您下載還原！',
+                    '雲端備份成功',
+                    { type: 'success' }
                 )
             }
         }
     } catch (error) {
         console.error('上傳備份失敗:', error)
-        alert('雲端備份同步失敗，請確認您的網路狀況或重新綁定帳號！')
+        await dialogStore.alert('雲端備份同步失敗，請確認您的網路狀況或重新綁定帳號！', '備份失敗', { type: 'danger' })
     }
 }
 
@@ -290,19 +301,21 @@ const handleUploadSync = async () => {
  */
 const handleDownloadRestore = async () => {
     if (!accessToken.value) return
-    if (
-        !confirm(
-            '⚠️ 警告！這將會完全覆蓋您當前本機的所有重訓日誌紀錄！\n確定要從雲端備份進行整包還原嗎？'
-        )
+    const confirmRestore = await dialogStore.confirm(
+        '⚠️ 警告！這將會完全覆蓋您當前本機的所有重訓日誌紀錄！\n確定要從雲端備份進行整包還原嗎？',
+        '確認還原備份',
+        { type: 'danger', confirmText: '確定還原', cancelText: '取消' }
     )
-        return
+    if (!confirmRestore) return
 
     try {
         const success = await store.syncRestore()
         if (success) {
             triggerCelebrate(100)
-            alert(
-                '💚 備份還原成功！本地重訓日誌已與雲端同步。\n應用程式即將重新載入以更新看板與日誌視圖！'
+            await dialogStore.alert(
+                '💚 本地重訓日誌已與雲端同步。\n應用程式即將重新載入以更新看板與日誌視圖！',
+                '備份還原成功',
+                { type: 'success' }
             )
 
             // 1 秒後重載頁面以刷新全局資料流
@@ -312,7 +325,7 @@ const handleDownloadRestore = async () => {
         }
     } catch (error: any) {
         console.error('還原備份失敗:', error)
-        alert(error?.message || '雲端資料還原失敗，請檢查備份狀態後重試！')
+        await dialogStore.alert(error?.message || '雲端資料還原失敗，請檢查備份狀態後重試！', '還原失敗', { type: 'danger' })
     }
 }
 

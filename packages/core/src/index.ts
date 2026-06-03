@@ -6,10 +6,12 @@ export {
     saveDatabase,
     getWorkoutByDate,
     saveWorkout,
+    hasWorkoutOnDate,
     getExercisesLibrary,
     addCustomExercise,
     getAllWorkouts,
-    updateExerciseLoadRecord
+    updateExerciseLoadRecord,
+    clearExerciseLoadRecord
 } from './db/dbService'
 
 // 2. 導出 Google Drive 雲端備份服務

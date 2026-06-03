@@ -1,19 +1,42 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { Flame, CheckCircle2, TimerReset, HelpCircle, PieChart, X } from '@lucide/vue'
+import { ref, computed, onMounted, watch, onActivated } from 'vue'
+import { Flame, CheckCircle2, HelpCircle, PieChart, X, Pause, Play, Dumbbell, Unlock, Square } from '@lucide/vue'
 // 💡 導入 Chart.js 核心庫 (從 packages 引入)
 import Chart from 'chart.js/auto'
 
 import { reactive } from 'vue'
-import { storeToRefs } from 'pinia'
 import { useWorkoutStore } from '../../../entities/workout'
+import { useDialogStore } from '../../../shared/ui/dialog/dialogStore'
+import { getWorkoutByDate } from '@forge-fit/core'
+import type { WorkoutSession } from '@forge-fit/types'
 
 const store = useWorkoutStore()
-const { todaySession } = storeToRefs(store)
+const dialogStore = useDialogStore()
+
+// 取得今天日期字串 (YYYY-MM-DD)
+const getTodayDateString = () => {
+    const now = new Date()
+    const yyyy = now.getFullYear()
+    const mm = String(now.getMonth() + 1).padStart(2, '0')
+    const dd = String(now.getDate()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}`
+}
+
+// 💡 獨立儲存看板所呈現的數據，鎖定為當天實際的 session 內容
+const currentSession = ref<WorkoutSession>({ date: '', exercises: [], duration: 0 })
+
+const loadDashboardData = () => {
+    const todayStr = getTodayDateString()
+    if (store.workoutDate === todayStr) {
+        currentSession.value = store.todaySession
+    } else {
+        currentSession.value = getWorkoutByDate(todayStr)
+    }
+}
 
 // 💡 用 reactive 模擬 props 物件，達成 100% 模板相容，完全不需改動 template 程式碼！
 const props = reactive({
-    session: todaySession
+    session: currentSession
 })
 
 // 1. 控制「訓練總量科普提示框」的顯示/隱藏狀態
@@ -62,21 +85,14 @@ const completedSetsCount = computed(() => {
     return sets
 })
 
-/** 💡 運動時長數值：從 props.session 讀取精確秒數，100% 還原 Garmin/Apple Watch 科技跑錶格式 (00:00) */
-const workoutDurationValue = computed(() => {
-    const totalSeconds = typeof props.session.secondsElapsed === 'number'
-        ? props.session.secondsElapsed
-        : (props.session.duration || 0) * 60
-    
+
+// 💡 今日主控台專用動態跑秒時間 (格式固定為 hh:mm:ss)
+const globalFormattedDuration = computed(() => {
+    const totalSeconds = store.globalLiveSeconds
     const hrs = Math.floor(totalSeconds / 3600)
     const mins = Math.floor((totalSeconds % 3600) / 60)
     const secs = totalSeconds % 60
-    
-    if (hrs > 0) {
-        return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
-    }
-    // 預設與 0 秒狀態皆顯示經典 MM:SS 跑表格式 (00:00)
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 })
 
 // ==========================================
@@ -187,7 +203,13 @@ const syncChartData = () => {
 }
 
 onMounted(() => {
+    loadDashboardData()
     initChartInstance()
+    syncChartData()
+})
+
+onActivated(() => {
+    loadDashboardData()
     syncChartData()
 })
 
@@ -196,6 +218,23 @@ watch(
     muscleVolumes,
     () => {
         syncChartData()
+    },
+    { deep: true }
+)
+
+// ⚡ 監聽選取日期變更，若是切換為今天或非今天，自動載入相對應的數據
+watch(
+    () => store.workoutDate,
+    () => {
+        loadDashboardData()
+    }
+)
+
+// ⚡ 深度監聽當前編輯項目的變動，如果是今日的編輯，即時在看板更新
+watch(
+    () => store.todaySession,
+    () => {
+        loadDashboardData()
     },
     { deep: true }
 )
@@ -221,10 +260,133 @@ const muscleLegendList = computed(() => {
         }
     })
 })
+
+// 🏆 觸發今日訓練圓滿結束的灑花（Celebration）動畫
+const triggerCelebration = () => {
+    const container = document.createElement('div')
+    container.className = 'celebration-container'
+    document.body.appendChild(container)
+
+    const colors = [
+        '#00f0ff', // 科技青
+        '#00ff87', // 皇家綠
+        '#ff007f', // 霓虹粉
+        '#ffb703', // 黃金橘
+        '#8a2be2', // 魅惑紫
+        '#ffffff'  // 純淨白
+    ]
+
+    for (let i = 0; i < 120; i++) {
+        const p = document.createElement('div')
+        p.className = 'particle'
+        
+        // 隨機落點與樣式
+        p.style.left = `${Math.random() * 100}vw`
+        p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)]
+        p.style.animationDelay = `${Math.random() * 2.5}s`
+        p.style.animationDuration = `${1.5 + Math.random() * 2}s`
+        
+        const scale = 0.5 + Math.random() * 1.2
+        const sizeVal = 6 + Math.random() * 6
+        p.style.width = `${sizeVal}px`
+        p.style.height = `${sizeVal}px`
+        p.style.transform = `scale(${scale})`
+        
+        container.appendChild(p)
+    }
+
+    // 4.5 秒後自動從 DOM 移除，避免遺留垃圾節點
+    setTimeout(() => {
+        if (container.parentNode) {
+            container.parentNode.removeChild(container)
+        }
+    }, 4500)
+}
+
+// 🛑 結束今日訓練
+const handleEndWorkout = async () => {
+    const confirmEnd = await dialogStore.confirm(
+        '結束後今天的運動時長與重訓日誌將被封存，防止誤觸。若後續仍需要修改，可隨時點擊解鎖編輯。',
+        '確定要結束今天的訓練嗎？',
+        { type: 'warning', confirmText: '結束訓練', cancelText: '取消' }
+    )
+    if (confirmEnd) {
+        store.endGlobalWorkout()
+        triggerCelebration()
+    }
+}
+
+// 🔓 解鎖編輯今日訓練
+const handleUnlockWorkout = () => {
+    store.unlockGlobalWorkout()
+}
 </script>
 
 <template>
     <div class="dashboard-grid" style="animation: fadeInUp 0.4s ease forwards">
+        <!-- ✨ 今日訓練主控台 (A+B 混合方案大面板) -->
+        <div class="glass-card timer-dashboard-panel full-width">
+            <div class="panel-content">
+                <div class="time-display-section">
+                    <span class="panel-tag">🔥 本日訓練控制台</span>
+                    <!-- 顯示動態跑秒 -->
+                    <h1 class="time-value">
+                        {{ globalFormattedDuration }}
+                    </h1>
+                </div>
+                <div class="action-buttons-group">
+                    <!-- 🏆 已完成訓練狀態 -->
+                    <template v-if="store.todaySession?.completed">
+                        <span class="workout-completed-status" title="本日訓練已圓滿結束">🏆</span>
+                        <button
+                            class="btn-dashboard-timer btn-unlock"
+                            @click="handleUnlockWorkout"
+                            title="解鎖編輯"
+                        >
+                            <Unlock :size="14" />
+                        </button>
+                    </template>
+
+                    <!-- ⏱️ 進行中訓練狀態 -->
+                    <template v-else>
+                        <button
+                            v-if="store.globalIsTimerActive"
+                            class="btn-dashboard-timer btn-pause"
+                            @click="store.pauseGlobalTimer"
+                            title="暫停訓練"
+                        >
+                            <Pause :size="14" />
+                        </button>
+                        <button
+                            v-else
+                            class="btn-dashboard-timer btn-start"
+                            @click="store.startGlobalTimer"
+                            title="開始訓練"
+                        >
+                            <Play :size="14" />
+                        </button>
+
+                        <button
+                            v-if="store.globalLiveSeconds > 0 || store.todaySession?.exercises?.length > 0"
+                            class="btn-dashboard-timer btn-stop"
+                            @click="handleEndWorkout"
+                            title="結束訓練"
+                        >
+                            <Square :size="12" />
+                        </button>
+                    </template>
+
+                    <router-link
+                        to="/logger"
+                        class="btn-dashboard-link"
+                        title="記錄重訓日誌"
+                    >
+                        <Dumbbell :size="14" class="text-cyan" />
+                    </router-link>
+                </div>
+            </div>
+        </div>
+
         <!-- 1. 今日核心統計數據列 (三大指標卡) -->
         <div class="stats-card-wrapper full-width">
             <!-- 總訓練量卡片 -->
@@ -302,21 +464,7 @@ const muscleLegendList = computed(() => {
                 </div>
             </div>
 
-            <!-- 運動時長卡片 -->
-            <div class="stat-card">
-                <div class="stat-icon-box purple-glow">
-                    <TimerReset :size="18" />
-                </div>
-                <div class="stat-data">
-                    <div class="stat-value" style="font-family: 'Outfit', 'Inter', monospace; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem;">
-                        <span>{{ workoutDurationValue }}</span>
-                        <span class="timer-live-badge" :class="{ 'timer-live-active': props.session.isTimerActive }">
-                            {{ props.session.isTimerActive ? 'LIVE' : '⏱️' }}
-                        </span>
-                    </div>
-                    <div class="stat-label">運動時長</div>
-                </div>
-            </div>
+
         </div>
 
         <!-- 2. 部位訓練量比例圓餅圖卡片 (Chart.js 動態繪製) -->
@@ -381,7 +529,148 @@ const muscleLegendList = computed(() => {
     </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+.timer-dashboard-panel {
+    animation: fadeIn 0.3s ease;
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    border: 1px solid rgba(0, 240, 255, 0.25);
+
+    .panel-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 1rem;
+        width: 100%;
+    }
+
+    .time-display-section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+
+        .panel-tag {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .time-value {
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: var(--color-cyan);
+            font-family: 'Outfit', 'Inter', monospace;
+            margin: 0;
+            text-shadow: 0 0 15px rgba(0, 240, 255, 0.45);
+            letter-spacing: 0.02em;
+        }
+    }
+
+    .action-buttons-group {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+        flex-wrap: wrap;
+
+        .btn-dashboard-timer {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            border: none;
+            flex-shrink: 0;
+            padding: 0;
+
+            &.btn-pause {
+                background: rgba(255, 74, 74, 0.08);
+                border: 1px solid rgba(255, 74, 74, 0.2);
+                color: var(--color-danger);
+
+                &:hover {
+                    background: var(--color-danger);
+                    color: #fff;
+                    box-shadow: 0 0 10px rgba(255, 74, 74, 0.25);
+                }
+            }
+
+            &.btn-start {
+                background: rgba(0, 240, 255, 0.08);
+                border: 1px solid rgba(0, 240, 255, 0.2);
+                color: var(--color-cyan);
+
+                &:hover {
+                    background: var(--color-cyan);
+                    color: #121624;
+                    box-shadow: 0 0 10px rgba(0, 240, 255, 0.25);
+                }
+            }
+
+            &.btn-stop {
+                background: rgba(255, 74, 74, 0.08);
+                border: 1px solid rgba(255, 74, 74, 0.2);
+                color: var(--color-danger);
+
+                &:hover {
+                    background: var(--color-danger);
+                    color: #fff;
+                    box-shadow: 0 0 10px rgba(255, 74, 74, 0.25);
+                }
+            }
+
+            &.btn-unlock {
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                color: var(--text-sub);
+
+                &:hover {
+                    background: rgba(255, 255, 255, 0.08);
+                    color: #fff;
+                }
+            }
+        }
+
+        .workout-completed-status {
+            font-size: 1.15rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 0.15rem;
+            filter: drop-shadow(0 0 6px rgba(255, 183, 3, 0.45));
+            user-select: none;
+        }
+
+        .btn-dashboard-link {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.15) 0%, rgba(47, 128, 237, 0.15) 100%);
+            border: 1px solid rgba(0, 240, 255, 0.25);
+            color: #fff;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            padding: 0;
+
+            &:hover {
+                border-color: rgba(0, 240, 255, 0.5);
+                box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+            }
+        }
+    }
+}
 /* 氣泡彈窗 (Popover) 的精緻樣式 */
 .glass-tooltip-popover {
     position: absolute;
@@ -562,6 +851,17 @@ const muscleLegendList = computed(() => {
     100% {
         opacity: 0.85;
         box-shadow: 0 0 6px rgba(0, 240, 255, 0.1);
+    }
+}
+
+/* 當看板只有兩張數據指標卡片時，微調非 PC 版面的對稱網格 */
+@media (max-width: 1023px) {
+    .stats-card-wrapper {
+        grid-template-columns: repeat(2, 1fr) !important;
+
+        > .stat-card:first-child {
+            grid-column: span 1 !important;
+        }
     }
 }
 </style>

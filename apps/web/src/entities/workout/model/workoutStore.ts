@@ -18,6 +18,13 @@ export const useWorkoutStore = defineStore('workout', () => {
     const todaySession = ref<WorkoutSession>({ date: '', exercises: [], duration: 0 })
     const exercisesLibrary = ref<ExerciseDef[]>([])
     
+    // 全局計時狀態 (對齊實際的今天 actualTodayStr)
+    const globalIsTimerActive = ref(false)
+    const globalSecondsElapsed = ref(0)
+    const globalLiveSeconds = ref(0)
+    const globalTimerStartedAt = ref<number | undefined>(undefined)
+    const actualTodayStr = ref('')
+    
     // Google Drive 雲端備份與 OAuth 帳號授權狀態
     const accessToken = ref('')
     const userEmail = ref('')
@@ -60,8 +67,16 @@ export const useWorkoutStore = defineStore('workout', () => {
         
         // 載入基準狀態
         workoutDate.value = todayStr
-        todaySession.value = getWorkoutByDate(todayStr)
+        const todaySess = getWorkoutByDate(todayStr)
+        todaySession.value = todaySess
         exercisesLibrary.value = getExercisesLibrary()
+        
+        // 初始化全局計時狀態
+        actualTodayStr.value = todayStr
+        globalSecondsElapsed.value = todaySess.secondsElapsed || (todaySess.duration || 0) * 60
+        globalLiveSeconds.value = globalSecondsElapsed.value
+        globalIsTimerActive.value = todaySess.isTimerActive || false
+        globalTimerStartedAt.value = todaySess.timerStartedAt
         
         // 從 LocalStorage 還原 Google Drive 帳號快取與同步標記
         accessToken.value = localStorage.getItem('forge-fit-google-token') || ''
@@ -73,10 +88,145 @@ export const useWorkoutStore = defineStore('workout', () => {
         const hasCustomId = !!localStorage.getItem('forge-fit-custom-client-id')
         const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
         isMockMode.value = !isLocal && !hasCustomId
+        
+        // 如果原本是運行狀態，自動恢復跑秒
+        if (globalIsTimerActive.value && globalTimerStartedAt.value) {
+            resumeGlobalTimer()
+        }
+    }
+
+    // 💡 定時器 Interval ID
+    let globalTimerIntervalId: number | null = null
+
+    // 💡 同步跑秒時間差值，並更新寫入實際今天的資料庫
+    const syncGlobalTime = () => {
+        let currentLiveSeconds = globalSecondsElapsed.value
+        if (globalIsTimerActive.value && globalTimerStartedAt.value) {
+            const diff = Math.floor((Date.now() - globalTimerStartedAt.value) / 1000)
+            currentLiveSeconds = globalSecondsElapsed.value + diff
+        }
+        
+        globalLiveSeconds.value = currentLiveSeconds
+        
+        const todayDate = actualTodayStr.value
+        if (todayDate) {
+            const sess = getWorkoutByDate(todayDate)
+            sess.secondsElapsed = currentLiveSeconds
+            sess.duration = Math.round(currentLiveSeconds / 60)
+            sess.isTimerActive = globalIsTimerActive.value
+            sess.timerStartedAt = globalTimerStartedAt.value
+            sess.completed = todaySession.value.completed || false
+            
+            saveWorkout(todayDate, sess)
+            
+            // 💡 如果目前日誌頁剛好顯示「今天」，同步更新記憶體中的 todaySession 以免畫面沒同步
+            if (workoutDate.value === todayDate) {
+                todaySession.value.secondsElapsed = currentLiveSeconds
+                todaySession.value.duration = sess.duration
+                todaySession.value.isTimerActive = globalIsTimerActive.value
+                todaySession.value.timerStartedAt = globalTimerStartedAt.value
+                todaySession.value.completed = sess.completed
+            }
+        }
+    }
+
+    // 💡 開始全局計時器
+    const startGlobalTimer = () => {
+        if (globalTimerIntervalId) return
+        globalIsTimerActive.value = true
+        
+        if (!globalTimerStartedAt.value) {
+            globalTimerStartedAt.value = Date.now()
+        }
+        
+        syncGlobalTime()
+        
+        globalTimerIntervalId = window.setInterval(() => {
+            syncGlobalTime()
+        }, 1000)
+    }
+    
+    // 💡 暫停全局計時器
+    const pauseGlobalTimer = () => {
+        if (globalTimerIntervalId) {
+            window.clearInterval(globalTimerIntervalId)
+            globalTimerIntervalId = null
+        }
+        
+        if (globalIsTimerActive.value && globalTimerStartedAt.value) {
+            const diff = Math.floor((Date.now() - globalTimerStartedAt.value) / 1000)
+            globalSecondsElapsed.value += diff
+        }
+        
+        globalIsTimerActive.value = false
+        globalTimerStartedAt.value = undefined
+        
+        syncGlobalTime()
+    }
+    
+    // 💡 調整計時器時長 (分鐘差值，例如 +5 或 -5)
+    const adjustGlobalDuration = (minutes: number) => {
+        const newSeconds = globalSecondsElapsed.value + minutes * 60
+        globalSecondsElapsed.value = Math.max(0, newSeconds)
+        syncGlobalTime()
+    }
+
+    // 💡 恢復跑秒的輔助方法 (由 initStore 呼叫)
+    const resumeGlobalTimer = () => {
+        if (globalTimerIntervalId) return
+        globalTimerIntervalId = window.setInterval(() => {
+            syncGlobalTime()
+        }, 1000)
+    }
+
+    // 💡 終止/結束今日訓練
+    const endGlobalWorkout = () => {
+        // 1. 暫停計時器
+        pauseGlobalTimer()
+        
+        // 2. 將今日 session 狀態設為已完成
+        const todayDate = actualTodayStr.value
+        if (todayDate) {
+            const sess = getWorkoutByDate(todayDate)
+            sess.completed = true
+            // 確保 secondsElapsed 與 duration 被同步鎖定
+            sess.secondsElapsed = globalLiveSeconds.value
+            sess.duration = Math.round(globalLiveSeconds.value / 60)
+            sess.isTimerActive = false
+            sess.timerStartedAt = undefined
+            
+            saveWorkout(todayDate, sess)
+            
+            // 更新目前頁面所呈現的資料狀態
+            if (workoutDate.value === todayDate) {
+                todaySession.value.completed = true
+                todaySession.value.isTimerActive = false
+                todaySession.value.timerStartedAt = undefined
+            }
+        }
+    }
+
+    // 💡 解鎖今日訓練以重新編輯
+    const unlockGlobalWorkout = () => {
+        const todayDate = actualTodayStr.value
+        if (todayDate) {
+            const sess = getWorkoutByDate(todayDate)
+            sess.completed = false
+            
+            saveWorkout(todayDate, sess)
+            
+            if (workoutDate.value === todayDate) {
+                todaySession.value.completed = false
+            }
+        }
     }
 
     // 💡 監聽當前編輯日期變更，自動重新從資料庫載入該日誌
-    watch(workoutDate, (newDate) => {
+    watch(workoutDate, (newDate, oldDate) => {
+        // 🔒 在切換日期前，同步、強制將舊日期的修改存入資料庫，避免 Vue 異步 Watch 佇列合併造成資料丟失
+        if (oldDate && todaySession.value && todaySession.value.date === oldDate) {
+            saveWorkout(oldDate, todaySession.value)
+        }
         if (newDate) {
             todaySession.value = getWorkoutByDate(newDate)
         }
@@ -84,14 +234,14 @@ export const useWorkoutStore = defineStore('workout', () => {
 
     // 💡 深度監聽 (Deep Watch) 訓練日誌物件，只要動作/組數/重量發生任何變更，微秒級寫入 LocalStorage
     watch(
-        todaySession,
+        () => todaySession.value,
         (newSession) => {
             if (isResetLock.value) return // 🔒 若已開啟重置鎖，拒絕將記憶體中的舊數據寫回資料庫！
             if (newSession.date) {
                 saveWorkout(newSession.date, newSession)
             }
         },
-        { deep: true }
+        { deep: true, flush: 'sync' }
     )
 
     // ----------------------------------------------------
@@ -228,6 +378,11 @@ export const useWorkoutStore = defineStore('workout', () => {
         workoutDate,
         todaySession,
         exercisesLibrary,
+        globalIsTimerActive,
+        globalSecondsElapsed,
+        globalLiveSeconds,
+        globalTimerStartedAt,
+        actualTodayStr,
         accessToken,
         userEmail,
         isLinked,
@@ -244,6 +399,12 @@ export const useWorkoutStore = defineStore('workout', () => {
         resetDatabase,
         disconnectGoogle,
         refreshLibrary,
-        addExerciseToToday
+        addExerciseToToday,
+        startGlobalTimer,
+        pauseGlobalTimer,
+        adjustGlobalDuration,
+        syncGlobalTime,
+        endGlobalWorkout,
+        unlockGlobalWorkout
     }
 })

@@ -3,10 +3,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 // 💡 導入我們手寫的 Pinia Workout Store
 import { useWorkoutStore } from '../entities/workout'
-import { Dumbbell, Menu, X, LayoutDashboard, ClipboardList, BookOpen, Settings } from '@lucide/vue'
+import { Dumbbell, Menu, X, LayoutDashboard, ClipboardList, BookOpen, Settings, Pause, Timer } from '@lucide/vue'
 import { SidebarWidget } from '../widgets/sidebar'
 import { MobileNavWidget } from '../widgets/mobile-nav'
 import { useMediaQuery } from '../shared/lib/useMediaQuery'
+import CustomDialog from '../shared/ui/dialog/CustomDialog.vue'
 
 // 💡 取得雙端 JS 監聽狀態，達成 100% 銷毀看不見 the DOM 節點
 const isMobile = useMediaQuery('(max-width: 768px)')
@@ -34,6 +35,20 @@ onMounted(() => {
 const pageTitle = computed(() => {
     return (route.meta?.title as string) || '今日訓練看板'
 })
+
+// 💡 全局懸浮跑秒格式化
+const formattedDuration = computed(() => {
+    const totalSeconds = store.globalLiveSeconds
+    const hrs = Math.floor(totalSeconds / 3600)
+    const mins = Math.floor((totalSeconds % 3600) / 60)
+    const secs = totalSeconds % 60
+    return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+})
+
+// 💡 判斷是否顯示全局懸浮計時條 (正在跑秒且不在 Dashboard)
+const showFloatingTimer = computed(() => {
+    return store.globalIsTimerActive && route.path !== '/' && route.path !== '/dashboard'
+})
 </script>
 
 <template>
@@ -44,7 +59,7 @@ const pageTitle = computed(() => {
         <!-- 📱 行動版主工作區 -->
         <main class="app-main">
             <header class="app-header">
-                <div class="header-title-section" style="align-items: center; display: flex; width: 100%;">
+                <div class="header-title-section">
                     <!-- 💡 行動端頂部左側漢堡按鈕：點擊拉出側邊抽屜，實現 footer 專注今日、歷史放側邊 -->
                     <button 
                         v-if="isMobile" 
@@ -60,7 +75,7 @@ const pageTitle = computed(() => {
                         <span>FORGE<span>FIT</span></span>
                     </div>
                     
-                    <div class="header-text-group" style="flex: 1;">
+                    <div class="header-text-group">
                         <h1 class="header-title">{{ pageTitle }}</h1>
                         <p class="header-subtitle">{{ currentDateStr }}</p>
                     </div>
@@ -156,9 +171,38 @@ const pageTitle = computed(() => {
             </aside>
         </Transition>
     </Teleport>
+
+    <!-- ✨ 全站懸浮計時條 (Global Floating Timer Bar) -->
+    <Transition name="slide-up-timer">
+        <div 
+            v-if="showFloatingTimer" 
+            class="global-floating-timer glass-card"
+            :class="{ 'is-mobile-timer': isMobile }"
+        >
+            <!-- 點擊主要區塊一鍵傳送回 Logger 頁面 -->
+            <RouterLink to="/logger" class="timer-link-area">
+                <div class="pulse-icon-box">
+                    <Timer :size="13" class="text-cyan glow-cyan timer-icon" />
+                </div>
+                <span class="timer-time">{{ formattedDuration }}</span>
+            </RouterLink>
+
+            <!-- 懸浮條右側暫停按鈕 -->
+            <button 
+                class="btn-floating-pause" 
+                @click.stop="store.pauseGlobalTimer"
+                title="暫停計時"
+            >
+                <Pause :size="10" />
+            </button>
+        </div>
+    </Transition>
+
+    <!-- 💡 全站客製化對話框 (Alert/Confirm) -->
+    <CustomDialog />
 </template>
 
-<style>
+<style lang="scss">
 @keyframes fadeInUp {
     from {
         opacity: 0;
@@ -168,6 +212,16 @@ const pageTitle = computed(() => {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+.header-title-section {
+    align-items: center;
+    display: flex;
+    width: 100%;
+}
+
+.header-text-group {
+    flex: 1;
 }
 
 /* 💡 行動端頂部漢堡按鈕樣式 */
@@ -314,5 +368,117 @@ const pageTitle = computed(() => {
 }
 .slide-left-enter-from, .slide-left-leave-to {
     transform: translateX(-100%);
+}
+
+/* ✨ 全站懸浮計時條樣式 (A+B 方案) */
+/* ✨ 全站懸浮計時條樣式 (A+B 方案) */
+.global-floating-timer {
+    position: fixed;
+    bottom: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 160px;
+    height: 36px;
+    background: rgba(18, 22, 36, 0.82) !important;
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(0, 240, 255, 0.25) !important;
+    border-radius: 18px;
+    padding: 0 0.65rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 6px 24px 0 rgba(0, 240, 255, 0.12), inset 0 0 8px rgba(0, 240, 255, 0.05);
+    z-index: 9998;
+    transition: all 0.3s ease;
+
+    /* 行動端：置於底部選單上方的正中間，避免阻擋可視範圍 */
+    &.is-mobile-timer {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        bottom: 75px; /* 置於 MobileNavWidget (大約 65px) 上方 */
+        width: 160px;
+    }
+
+    .timer-link-area {
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        flex: 1;
+        min-width: 0;
+    }
+
+    .pulse-icon-box {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: timerPulse 2s infinite ease-in-out;
+
+        .timer-icon {
+            filter: drop-shadow(0 0 3px var(--color-cyan));
+        }
+    }
+
+    .timer-time {
+        font-size: 0.85rem;
+        font-weight: 800;
+        color: var(--color-cyan);
+        font-family: 'Outfit', 'Inter', monospace;
+        text-shadow: 0 0 6px rgba(0, 240, 255, 0.3);
+        line-height: 1;
+    }
+
+    .btn-floating-pause {
+        background: rgba(255, 74, 74, 0.08);
+        border: 1px solid rgba(255, 74, 74, 0.2);
+        color: var(--color-danger);
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        flex-shrink: 0;
+
+        &:hover {
+            background: var(--color-danger) !important;
+            color: #fff !important;
+            box-shadow: 0 0 6px rgba(255, 74, 74, 0.4);
+            transform: scale(1.05);
+        }
+
+        &:active {
+            transform: scale(0.95);
+        }
+    }
+}
+
+@keyframes timerPulse {
+    0% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 2px rgba(0, 240, 255, 0.2));
+    }
+    50% {
+        transform: scale(1.12);
+        filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.6));
+    }
+    100% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 2px rgba(0, 240, 255, 0.2));
+    }
+}
+
+/* 懸浮條滑入滑出動畫 */
+.slide-up-timer-enter-active,
+.slide-up-timer-leave-active {
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+}
+.slide-up-timer-enter-from,
+.slide-up-timer-leave-to {
+    transform: translateX(-50%) translateY(120%) scale(0.95);
+    opacity: 0;
 }
 </style>
