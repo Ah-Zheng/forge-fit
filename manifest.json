@@ -1,0 +1,25 @@
+{
+    "name": "ForgeFit 健身助理",
+    "short_name": "ForgeFit",
+    "description": "專為手機設計的暗黑科技風健身重量紀錄與訓練量分析 PWA 應用。",
+    "start_url": "index.html",
+    "display": "standalone",
+    "background_color": "#080A10",
+    "theme_color": "#080A10",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "logo.svg",
+            "sizes": "192x192 512x512",
+            "type": "image/svg+xml",
+            "purpose": "any maskable"
+        }
+    ],
+    "shortcuts": [
+        {
+            "name": "今日重量紀錄",
+            "url": "index.html#page-logger",
+            "description": "直接打開今日訓練重量紀錄日誌"
+        }
+    ]
+}
