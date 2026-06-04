@@ -279,19 +279,19 @@ const triggerCelebration = () => {
     for (let i = 0; i < 120; i++) {
         const p = document.createElement('div')
         p.className = 'particle'
-        
+
         // 隨機落點與樣式
         p.style.left = `${Math.random() * 100}vw`
         p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)]
         p.style.animationDelay = `${Math.random() * 2.5}s`
         p.style.animationDuration = `${1.5 + Math.random() * 2}s`
-        
+
         const scale = 0.5 + Math.random() * 1.2
         const sizeVal = 6 + Math.random() * 6
         p.style.width = `${sizeVal}px`
         p.style.height = `${sizeVal}px`
         p.style.transform = `scale(${scale})`
-        
+
         container.appendChild(p)
     }
 
@@ -338,49 +338,29 @@ const handleUnlockWorkout = () => {
                     <!-- 🏆 已完成訓練狀態 -->
                     <template v-if="store.todaySession?.completed">
                         <span class="workout-completed-status" title="本日訓練已圓滿結束">🏆</span>
-                        <button
-                            class="btn-dashboard-timer btn-unlock"
-                            @click="handleUnlockWorkout"
-                            title="解鎖編輯"
-                        >
+                        <button class="btn-dashboard-timer btn-unlock" @click="handleUnlockWorkout" title="解鎖編輯">
                             <Unlock :size="14" />
                         </button>
                     </template>
 
                     <!-- ⏱️ 進行中訓練狀態 -->
                     <template v-else>
-                        <button
-                            v-if="store.globalIsTimerActive"
-                            class="btn-dashboard-timer btn-pause"
-                            @click="store.pauseGlobalTimer"
-                            title="暫停訓練"
-                        >
+                        <button v-if="store.globalIsTimerActive" class="btn-dashboard-timer btn-pause"
+                            @click="store.pauseGlobalTimer" title="暫停訓練">
                             <Pause :size="14" />
                         </button>
-                        <button
-                            v-else
-                            class="btn-dashboard-timer btn-start"
-                            @click="store.startGlobalTimer"
-                            title="開始訓練"
-                        >
+                        <button v-else class="btn-dashboard-timer btn-start" @click="store.startGlobalTimer"
+                            title="開始訓練">
                             <Play :size="14" />
                         </button>
 
-                        <button
-                            v-if="store.globalLiveSeconds > 0 || store.todaySession?.exercises?.length > 0"
-                            class="btn-dashboard-timer btn-stop"
-                            @click="handleEndWorkout"
-                            title="結束訓練"
-                        >
+                        <button v-if="store.globalLiveSeconds > 0 || store.todaySession?.exercises?.length > 0"
+                            class="btn-dashboard-timer btn-stop" @click="handleEndWorkout" title="結束訓練">
                             <Square :size="12" />
                         </button>
                     </template>
 
-                    <router-link
-                        to="/logger"
-                        class="btn-dashboard-link"
-                        title="記錄重訓日誌"
-                    >
+                    <router-link to="/logger" class="btn-dashboard-link" title="記錄重訓日誌">
                         <Dumbbell :size="14" class="text-cyan" />
                     </router-link>
                 </div>
@@ -390,10 +370,7 @@ const handleUnlockWorkout = () => {
         <!-- 1. 今日核心統計數據列 (三大指標卡) -->
         <div class="stats-card-wrapper full-width">
             <!-- 總訓練量卡片 -->
-            <div
-                class="stat-card"
-                :style="{ position: 'relative', zIndex: showVolumeTooltip ? 100 : 1 }"
-            >
+            <div class="stat-card" :style="{ position: 'relative', zIndex: showVolumeTooltip ? 100 : 1 }">
                 <div class="stat-icon-box cyan-glow">
                     <Flame :size="18" />
                 </div>
@@ -403,17 +380,10 @@ const handleUnlockWorkout = () => {
                         {{ totalVolume.toLocaleString() }} <span class="unit">kg</span>
                     </div>
                     <!-- 數據標籤與科普問號圖標 -->
-                    <div
-                        class="stat-label"
-                        style="display: flex; align-items: center; gap: 0.25rem"
-                    >
+                    <div class="stat-label" style="display: flex; align-items: center; gap: 0.25rem">
                         <span>今日總訓練量</span>
-                        <button
-                            type="button"
-                            class="tooltip-trigger-btn"
-                            @click="showVolumeTooltip = !showVolumeTooltip"
-                            title="點擊查看訓練量科學原理"
-                            style="
+                        <button type="button" class="tooltip-trigger-btn"
+                            @click="showVolumeTooltip = !showVolumeTooltip" title="點擊查看訓練量科學原理" style="
                                 background: transparent;
                                 border: none;
                                 padding: 0.2rem;
@@ -421,8 +391,7 @@ const handleUnlockWorkout = () => {
                                 color: var(--color-cyan);
                                 display: flex;
                                 align-items: center;
-                            "
-                        >
+                            ">
                             <HelpCircle :size="12" style="opacity: 0.8" />
                         </button>
                     </div>
@@ -437,11 +406,11 @@ const handleUnlockWorkout = () => {
                         </button>
                     </div>
                     <div class="popover-body">
-                        <p class="formula"><strong>計算公式：</strong>重量 × 次數 × 組數</p>
+                        <p class="formula">
+                            <strong>計算公式：</strong>重量 × 次數 × 組數
+                        </p>
                         <p class="desc">
-                            這在健身科學中被稱為<strong>「總負荷量」</strong>，是評估<strong
-                                >漸進性超負荷 (Progressive Overload)</strong
-                            >
+                            這在健身科學中被稱為<strong>「總負荷量」</strong>，是評估<strong>漸進性超負荷 (Progressive Overload)</strong>
                             最關鍵的指標。只要這個數值隨時間推移穩定上升，就代表你的肌肉在持續進步、變強！
                         </p>
                         <p class="motivation">
@@ -460,7 +429,9 @@ const handleUnlockWorkout = () => {
                     <div class="stat-value">
                         {{ completedSetsCount }} <span class="unit">組</span>
                     </div>
-                    <div class="stat-label">今日完成組數</div>
+                    <div class="stat-label">
+                        今日完成組數
+                    </div>
                 </div>
             </div>
 
@@ -471,11 +442,7 @@ const handleUnlockWorkout = () => {
         <div class="glass-card chart-card full-width">
             <div class="card-header">
                 <div class="card-title-group">
-                    <PieChart
-                        class="text-cyan"
-                        :size="20"
-                        style="filter: drop-shadow(0 0 4px var(--color-cyan))"
-                    />
+                    <PieChart class="text-cyan" :size="20" style="filter: drop-shadow(0 0 4px var(--color-cyan))" />
                     <h2>部位訓練量比例</h2>
                 </div>
             </div>
@@ -494,9 +461,9 @@ const handleUnlockWorkout = () => {
                 <div v-else class="chart-active-center-glow">
                     <span class="active-title">
                         {{
-                            totalVolume >= 1000
-                                ? (totalVolume / 1000).toFixed(1) + 't'
-                                : totalVolume + 'kg'
+                        totalVolume >= 1000
+                        ? (totalVolume / 1000).toFixed(1) + 't'
+                        : totalVolume + 'kg'
                         }}
                     </span>
                     <span class="active-subtitle">今日總負荷</span>
@@ -505,22 +472,15 @@ const handleUnlockWorkout = () => {
 
             <!-- 💡 響應式客製化發光圖例清單 (動態透明度引導視覺焦點) -->
             <div class="chart-legend-custom" id="chart-legend">
-                <div
-                    v-for="m in muscleLegendList"
-                    :key="m.key"
-                    class="legend-item"
-                    :style="{
-                        opacity: totalVolume === 0 ? 0.5 : m.vol > 0 ? 1 : 0.25,
-                        transition: 'opacity 0.3s ease'
-                    }"
-                >
-                    <span
-                        class="legend-dot"
-                        :style="{ backgroundColor: m.color, boxShadow: `0 0 8px ${m.color}` }"
-                    ></span>
+                <div v-for="m in muscleLegendList" :key="m.key" class="legend-item" :style="{
+          opacity: totalVolume === 0 ? 0.5 : m.vol > 0 ? 1 : 0.25,
+          transition: 'opacity 0.3s ease'
+        }">
+                    <span class="legend-dot"
+                        :style="{ backgroundColor: m.color, boxShadow: `0 0 8px ${m.color}` }"></span>
                     <span>
                         {{ m.label }}: <strong>{{ m.vol.toLocaleString() }} kg</strong> ({{
-                            m.pct
+                        m.pct
                         }}%)
                     </span>
                 </div>
@@ -671,6 +631,7 @@ const handleUnlockWorkout = () => {
         }
     }
 }
+
 /* 氣泡彈窗 (Popover) 的精緻樣式 */
 .glass-tooltip-popover {
     position: absolute;
@@ -713,6 +674,7 @@ const handleUnlockWorkout = () => {
     justify-content: center;
     border-radius: 4px;
 }
+
 .btn-close-popover:hover {
     background: rgba(255, 255, 255, 0.05);
     color: var(--color-danger);
@@ -760,7 +722,8 @@ const handleUnlockWorkout = () => {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    pointer-events: none; /* 💡 確保觸控事件穿透至 canvas，不干擾 Chart.js tooltip 觸發 */
+    pointer-events: none;
+    /* 💡 確保觸控事件穿透至 canvas，不干擾 Chart.js tooltip 觸發 */
     text-align: center;
     user-select: none;
 }
@@ -784,7 +747,8 @@ const handleUnlockWorkout = () => {
     font-size: 1.35rem;
     font-weight: 900;
     color: var(--color-cyan);
-    text-shadow: 0 0 12px rgba(0, 240, 255, 0.45); /* 💡 頂級科技感發光陰影 */
+    text-shadow: 0 0 12px rgba(0, 240, 255, 0.45);
+    /* 💡 頂級科技感發光陰影 */
     letter-spacing: -0.02em;
     line-height: 1.1;
 }
@@ -806,7 +770,8 @@ const handleUnlockWorkout = () => {
     }
 
     .active-title {
-        font-size: 1.2rem; /* 💡 手機版尺寸微調，避免數值溢出圓環 */
+        font-size: 1.2rem;
+        /* 💡 手機版尺寸微調，避免數值溢出圓環 */
     }
 }
 
@@ -843,11 +808,13 @@ const handleUnlockWorkout = () => {
         opacity: 0.85;
         box-shadow: 0 0 6px rgba(0, 240, 255, 0.1);
     }
+
     50% {
         opacity: 1;
         box-shadow: 0 0 12px rgba(0, 240, 255, 0.3);
         filter: drop-shadow(0 0 2px var(--color-cyan));
     }
+
     100% {
         opacity: 0.85;
         box-shadow: 0 0 6px rgba(0, 240, 255, 0.1);
@@ -859,7 +826,7 @@ const handleUnlockWorkout = () => {
     .stats-card-wrapper {
         grid-template-columns: repeat(2, 1fr) !important;
 
-        > .stat-card:first-child {
+        >.stat-card:first-child {
             grid-column: span 1 !important;
         }
     }

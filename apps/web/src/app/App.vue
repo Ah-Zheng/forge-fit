@@ -2,8 +2,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 // 💡 導入我們手寫的 Pinia Workout Store
-import { useWorkoutStore } from '../entities/workout'
-import { Dumbbell, Menu, X, LayoutDashboard, ClipboardList, BookOpen, Settings, Pause, Timer } from '@lucide/vue'
+import { useWorkoutStore, useRestTimerStore } from '../entities/workout'
+import { Dumbbell, Menu, X, LayoutDashboard, ClipboardList, BookOpen, Settings, Pause, Timer, Play } from '@lucide/vue'
 import { SidebarWidget } from '../widgets/sidebar'
 import { MobileNavWidget } from '../widgets/mobile-nav'
 import { useMediaQuery } from '../shared/lib/useMediaQuery'
@@ -17,6 +17,7 @@ const isMobileDrawerOpen = ref(false)
 
 // 💡 引入 Pinia 全局狀態
 const store = useWorkoutStore()
+const timerStore = useRestTimerStore()
 
 const route = useRoute()
 const currentDateStr = ref('')
@@ -24,6 +25,8 @@ const currentDateStr = ref('')
 onMounted(() => {
     // 💡 初始化資料庫載入與狀態讀取
     store.initStore()
+    timerStore.restoreTimerState()
+    timerStore.loadGlobalRestDuration()
 
     // 格式化今日的標題日期字串 (例如 "2026年6月1日 星期一")
     const now = new Date()
@@ -45,9 +48,19 @@ const formattedDuration = computed(() => {
     return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
 })
 
-// 💡 判斷是否顯示全局懸浮計時條 (正在跑秒且不在 Dashboard)
+// 💡 全局懸浮休息倒數格式化
+const formattedRestTime = computed(() => {
+    const totalSeconds = timerStore.timeLeft
+    if (isNaN(totalSeconds) || totalSeconds <= 0) return '00:00'
+    const mins = Math.floor(totalSeconds / 60)
+    const secs = totalSeconds % 60
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+})
+
+// 💡 判斷是否顯示全局懸浮計時條 (總計時或休息計時在跑，且不在 Dashboard 或 Plan 頁面)
 const showFloatingTimer = computed(() => {
-    return store.globalIsTimerActive && route.path !== '/' && route.path !== '/dashboard'
+    const isPlanOrDashboard = route.path === '/' || route.path === '/dashboard' || route.path === '/plan'
+    return (store.globalIsTimerActive || timerStore.isResting) && !isPlanOrDashboard
 })
 </script>
 
@@ -140,6 +153,15 @@ const showFloatingTimer = computed(() => {
                         <ClipboardList :size="18" />
                         <span>今日重量日誌</span>
                     </RouterLink>
+                    <RouterLink 
+                        to="/plan"
+                        @click="isMobileDrawerOpen = false"
+                        class="drawer-item" 
+                        active-class="active"
+                    >
+                        <Timer :size="18" />
+                        <span>訓練計劃</span>
+                    </RouterLink>
 
                     <RouterLink 
                         to="/library"
@@ -177,24 +199,60 @@ const showFloatingTimer = computed(() => {
         <div 
             v-if="showFloatingTimer" 
             class="global-floating-timer glass-card"
-            :class="{ 'is-mobile-timer': isMobile }"
+            :class="{ 
+                'is-mobile-timer': isMobile,
+                'has-active-rest': timerStore.isResting 
+            }"
         >
-            <!-- 點擊主要區塊一鍵傳送回 Logger 頁面 -->
-            <RouterLink to="/logger" class="timer-link-area">
+            <!-- 區塊一：訓練總時長 -->
+            <RouterLink v-if="store.globalIsTimerActive" to="/logger" class="timer-link-area">
                 <div class="pulse-icon-box">
                     <Timer :size="13" class="text-cyan glow-cyan timer-icon" />
                 </div>
                 <span class="timer-time">{{ formattedDuration }}</span>
             </RouterLink>
 
-            <!-- 懸浮條右側暫停按鈕 -->
-            <button 
-                class="btn-floating-pause" 
-                @click.stop="store.pauseGlobalTimer"
-                title="暫停計時"
-            >
-                <Pause :size="10" />
-            </button>
+            <!-- 分隔線 (如果兩者都存在) -->
+            <div v-if="store.globalIsTimerActive && timerStore.isResting" class="timer-divider"></div>
+
+            <!-- 區塊二：組間休息倒數 (雙軌並排動態島) -->
+            <RouterLink v-if="timerStore.isResting" to="/plan" class="timer-link-area rest-link-area">
+                <div class="pulse-icon-box-orange" :class="{ 'paused-pulse': timerStore.isPaused }">
+                    <Timer :size="13" class="text-orange glow-orange timer-icon" />
+                </div>
+                <span class="timer-time text-orange">{{ formattedRestTime }}</span>
+            </RouterLink>
+
+            <!-- 懸浮條右側控制按鈕 -->
+            <div class="floating-controls">
+                <!-- 暫停/繼續 休息 (如果正在休息) -->
+                <button 
+                    v-if="timerStore.isResting && !timerStore.isPaused"
+                    class="btn-floating-pause text-orange-hover" 
+                    @click.stop="timerStore.pauseRest"
+                    title="暫停休息"
+                >
+                    <Pause :size="10" />
+                </button>
+                <button 
+                    v-else-if="timerStore.isResting && timerStore.isPaused"
+                    class="btn-floating-pause text-green-hover" 
+                    @click.stop="timerStore.resumeRest"
+                    title="繼續休息"
+                >
+                    <Play :size="10" />
+                </button>
+                
+                <!-- 暫停/繼續 訓練 (如果沒有在休息，只顯示原本的暫停按鈕) -->
+                <button 
+                    v-else-if="store.globalIsTimerActive"
+                    class="btn-floating-pause" 
+                    @click.stop="store.pauseGlobalTimer"
+                    title="暫停訓練計時"
+                >
+                    <Pause :size="10" />
+                </button>
+            </div>
         </div>
     </Transition>
 
@@ -400,6 +458,59 @@ const showFloatingTimer = computed(() => {
         width: 160px;
     }
 
+    /* 💡 動態島：當啟動組間休息時計時條自動平滑變寬，呈橘色霓虹發光 */
+    &.has-active-rest {
+        width: 270px;
+        border-color: rgba(255, 122, 0, 0.35) !important;
+        box-shadow: 0 6px 24px 0 rgba(255, 122, 0, 0.15), inset 0 0 8px rgba(255, 122, 0, 0.05);
+
+        &.is-mobile-timer {
+            width: 270px;
+        }
+    }
+
+    .timer-divider {
+        width: 1px;
+        height: 16px;
+        background: rgba(255, 255, 255, 0.12);
+        margin: 0 0.5rem;
+    }
+
+    .floating-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+    }
+
+    .text-orange {
+        color: #ff7a00 !important;
+        text-shadow: 0 0 6px rgba(255, 122, 0, 0.3) !important;
+    }
+
+    .text-orange-hover {
+        background: rgba(255, 122, 0, 0.08) !important;
+        border-color: rgba(255, 122, 0, 0.2) !important;
+        color: #ff7a00 !important;
+        
+        &:hover {
+            background: #ff7a00 !important;
+            color: #fff !important;
+            box-shadow: 0 0 6px rgba(255, 122, 0, 0.4) !important;
+        }
+    }
+
+    .text-green-hover {
+        background: rgba(0, 230, 120, 0.08) !important;
+        border-color: rgba(0, 230, 120, 0.2) !important;
+        color: var(--color-success) !important;
+        
+        &:hover {
+            background: var(--color-success) !important;
+            color: #fff !important;
+            box-shadow: 0 0 6px rgba(0, 230, 120, 0.4) !important;
+        }
+    }
+
     .timer-link-area {
         text-decoration: none;
         display: flex;
@@ -417,6 +528,21 @@ const showFloatingTimer = computed(() => {
 
         .timer-icon {
             filter: drop-shadow(0 0 3px var(--color-cyan));
+        }
+    }
+
+    .pulse-icon-box-orange {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: timerPulseOrange 2s infinite ease-in-out;
+
+        &.paused-pulse {
+            animation-play-state: paused;
+        }
+
+        .timer-icon {
+            filter: drop-shadow(0 0 3px #ff7a00);
         }
     }
 
@@ -468,6 +594,21 @@ const showFloatingTimer = computed(() => {
     100% {
         transform: scale(1);
         filter: drop-shadow(0 0 2px rgba(0, 240, 255, 0.2));
+    }
+}
+
+@keyframes timerPulseOrange {
+    0% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 2px rgba(255, 122, 0, 0.2));
+    }
+    50% {
+        transform: scale(1.12);
+        filter: drop-shadow(0 0 6px rgba(255, 122, 0, 0.6));
+    }
+    100% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 2px rgba(255, 122, 0, 0.2));
     }
 }
 

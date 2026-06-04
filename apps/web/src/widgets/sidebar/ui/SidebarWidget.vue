@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Dumbbell, LayoutDashboard, ClipboardList, BookOpen, Settings, User } from '@lucide/vue'
+import { Dumbbell, LayoutDashboard, ClipboardList, BookOpen, Settings, User, Timer } from '@lucide/vue'
 </script>
 
 <template>
@@ -27,6 +27,14 @@ import { Dumbbell, LayoutDashboard, ClipboardList, BookOpen, Settings, User } fr
             >
                 <ClipboardList :size="20" />
                 <span>重量紀錄</span>
+            </RouterLink>
+            <RouterLink
+                to="/plan"
+                class="menu-item"
+                active-class="active"
+            >
+                <Timer :size="20" />
+                <span>訓練計劃</span>
             </RouterLink>
             <RouterLink
                 to="/library"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LayoutDashboard, ClipboardList, BookOpen, Settings, Plus, Compass } from '@lucide/vue'
+import { LayoutDashboard, ClipboardList, BookOpen, Settings, Plus, Timer } from '@lucide/vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useWorkoutStore } from '../../../entities/workout'
 
@@ -30,16 +30,15 @@ const handleCenterClick = () => {
             <span>看板</span>
         </RouterLink>
         
-        <!-- 2. 💡 暫時佔位按鈕 (左邊數來第二個，無實際功能，以半透明度與指針指南針呈現極佳期待感) -->
-        <button
+        <!-- 2. 今日計劃與計時 -->
+        <RouterLink
+            to="/plan"
             class="mobile-nav-item"
-            style="opacity: 0.55; cursor: default;"
-            title="功能即將開放，敬請期待"
-            @click.prevent
+            active-class="active"
         >
-            <Compass :size="18" />
-            <span>探索</span>
-        </button>
+            <Timer :size="18" />
+            <span>計劃</span>
+        </RouterLink>
         
         <!-- 3. 💡 Moze 記帳風：正中間凸出、霓虹呼吸發光的動態雙態大按鈕 (日誌 / +) -->
         <div class="mobile-nav-center-btn-wrapper">

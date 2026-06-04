@@ -1,8 +1,6 @@
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import pluginVue from 'eslint-plugin-vue'
-import prettierConfig from 'eslint-config-prettier'
-import prettierPlugin from 'eslint-plugin-prettier'
 
 export default [
     js.configs.recommended,
@@ -34,16 +32,11 @@ export default [
                 HTMLElement: 'readonly'
             }
         },
-        plugins: {
-            prettier: prettierPlugin
-        },
         rules: {
-            'prettier/prettier': 'error',
             'vue/multi-word-component-names': 'off',
             'vue/no-v-html': 'off'
         }
     },
-    prettierConfig,
     {
         ignores: [
             '**/dist/**',

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, reactive } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, reactive, nextTick } from 'vue'
+import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { useWorkoutStore } from '../../../entities/workout'
+import { useWorkoutStore, useRestTimerStore } from '../../../entities/workout'
 import { useDialogStore } from '../../../shared/ui/dialog/dialogStore'
 import {
     AlertCircle,
@@ -29,6 +30,7 @@ import { NeonConfetti } from '../../../shared/lib/confetti'
 import { useMediaQuery } from '../../../shared/lib/useMediaQuery'
 
 const isMobile = useMediaQuery('(max-width: 768px)')
+const route = useRoute()
 
 const store = useWorkoutStore()
 const dialogStore = useDialogStore()
@@ -532,10 +534,31 @@ const adjustDuration = (minutes: number) => {
     }
 }
 
+const checkFocusQuery = () => {
+    const focusId = route.query.focus as string
+    if (focusId) {
+        expandedExerciseId.value = focusId
+        nextTick(() => {
+            const element = document.getElementById(`ex-card-${focusId}`)
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }
+        })
+    }
+}
+
+watch(
+    () => route.query.focus,
+    () => {
+        checkFocusQuery()
+    }
+)
+
 onMounted(() => {
     if (confettiCanvas.value) {
         confettiEngine = new NeonConfetti(confettiCanvas.value)
     }
+    checkFocusQuery()
 })
 
 onUnmounted(() => {
@@ -575,6 +598,17 @@ const toggleExpand = (exerciseId: string) => {
         expandedExerciseId.value = null
     } else {
         expandedExerciseId.value = exerciseId
+    }
+}
+
+/**
+ * 💡 當勾選或取消完成某組時的處理邏輯 (組間休息自動計時)
+ */
+const handleSetCompleteChange = (exercise: ExerciseSession, set: any) => {
+    if (set.completed && !props.session.completed) {
+        const timerStore = useRestTimerStore()
+        // 💡 啟動全域休息計時器 (自訂全域時間)
+        timerStore.startRest(timerStore.globalRestDuration, exercise.name)
     }
 }
 
@@ -808,11 +842,11 @@ const handleTouchEnd = (e: TouchEvent) => {
                 </p>
             </div>
 
-            <!-- 💡 場景 2：動態渲染真正的重訓動作日誌卡片與觸控加減按鈕 -->
             <div v-else class="exercises-container">
                 <div
                     v-for="(ex, exIdx) in props.session.exercises"
                     :key="ex.exerciseId"
+                    :id="`ex-card-${ex.exerciseId}`"
                     class="exercise-block card-glow-blue"
                     :class="{
                         'exercise-all-completed':
@@ -962,9 +996,13 @@ const handleTouchEnd = (e: TouchEvent) => {
                                 <!-- 🔢 次數步進器：每點一下加減 1 下 -->
                                 <TactileStepper v-model="set.reps" :step="1" :disabled="set.completed || props.session.completed" />
 
-                                <!-- 核取狀態 Checkbox -->
                                 <label class="checkbox-container">
-                                    <input v-model="set.completed" type="checkbox" :disabled="props.session.completed" />
+                                    <input 
+                                        v-model="set.completed" 
+                                        type="checkbox" 
+                                        :disabled="props.session.completed" 
+                                        @change="handleSetCompleteChange(ex, set)"
+                                    />
                                     <span class="checkmark"></span>
                                 </label>
 

@@ -9,6 +9,7 @@ import {
     downloadBackup
 } from '@forge-fit/core'
 import type { WorkoutSession, ExerciseDef } from '@forge-fit/types'
+import { useDialogStore } from '../../../shared/ui/dialog/dialogStore'
 
 export const useWorkoutStore = defineStore('workout', () => {
     // ----------------------------------------------------
@@ -84,10 +85,13 @@ export const useWorkoutStore = defineStore('workout', () => {
         lastSyncedTime.value = localStorage.getItem('forge-fit-google-last-sync') || ''
         isLinked.value = !!accessToken.value
         
-        // 判斷當前是否降級走模擬沙盒模式 (非 localhost 且沒有設定自訂 Web Client ID)
-        const hasCustomId = !!localStorage.getItem('forge-fit-custom-client-id')
-        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        isMockMode.value = !isLocal && !hasCustomId
+        // 判斷當前是否降級走模擬沙盒模式 (如果是 mock token 或者非 localhost 預設走模擬)
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.')
+        if (accessToken.value) {
+            isMockMode.value = accessToken.value.startsWith('mock-token-')
+        } else {
+            isMockMode.value = !isLocal
+        }
         
         // 如果原本是運行狀態，自動恢復跑秒
         if (globalIsTimerActive.value && globalTimerStartedAt.value) {
@@ -316,8 +320,8 @@ export const useWorkoutStore = defineStore('workout', () => {
         }
     }
 
-    // 💡 徹底抹除本地所有重訓紀錄、備份快取與開發者金鑰 (Danger Zone 重置所有數據)
-    const resetDatabase = () => {
+    // 💡 徹底抹除本地所有重訓紀錄與備份快取 (Danger Zone 重置所有數據)
+    const resetDatabase = async () => {
         // 🔒 寫入防寫安全鎖，阻斷 unmount 重新整理時 Vue watch 競態回寫舊資料
         isResetLock.value = true
         localStorage.setItem('forge-fit-reset-lock', 'true')
@@ -328,18 +332,17 @@ export const useWorkoutStore = defineStore('workout', () => {
         localStorage.removeItem('forge-fit-google-email')
         localStorage.removeItem('forge-fit-google-last-sync')
         localStorage.removeItem('forge-fit-sandbox-backup')
-        localStorage.removeItem('forge-fit-custom-client-id')
         
         // 💡 警告：千萬不能在 reload 前呼叫 initStore() 或清除 reset-lock 緩存！
-        
-        alert('🔥 本地數據與雲端綁定快取已徹底抹除！應用程式即將重新載入！')
+        const dialogStore = useDialogStore()
+        await dialogStore.alert('🔥 本地數據與雲端綁定快取已徹底抹除！應用程式即將重新載入！', '重置成功', { type: 'success' })
         window.location.reload()
     }
 
     // 解除連結 Google 雲端帳號 (雙軌支援：僅解除連結，或解除並清空本地重訓紀錄)
-    const disconnectGoogle = (clearLocalData = false) => {
+    const disconnectGoogle = async (clearLocalData = false) => {
         if (clearLocalData) {
-            resetDatabase()
+            await resetDatabase()
         } else {
             // 僅登出雲端，不影響本地重訓數據 (PWA 離線優先核心精神)
             accessToken.value = ''
@@ -348,7 +351,8 @@ export const useWorkoutStore = defineStore('workout', () => {
             localStorage.removeItem('forge-fit-google-token')
             localStorage.removeItem('forge-fit-google-email')
             localStorage.removeItem('forge-fit-google-last-sync')
-            alert('🟢 已解除 Google 雲端帳號連結！本地重訓日誌依舊安全保留在您的瀏覽器中。')
+            const dialogStore = useDialogStore()
+            await dialogStore.alert('🟢 已解除 Google 雲端帳號連結！本地重訓日誌依舊安全保留在您的瀏覽器中。', '解除連結成功', { type: 'success' })
         }
     }
 

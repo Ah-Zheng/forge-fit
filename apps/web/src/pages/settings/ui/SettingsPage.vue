@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useWorkoutStore } from '../../../entities/workout'
+import { useWorkoutStore, useRestTimerStore } from '../../../entities/workout'
 import { useDialogStore } from '../../../shared/ui/dialog/dialogStore'
 import {
     Cloud,
@@ -10,27 +10,21 @@ import {
     UserCheck,
     LogOut,
     AlertTriangle,
-    ShieldCheck
+    ShieldCheck,
+    Timer,
+    ChevronLeft,
+    ChevronRight,
+    Plus,
+    Minus
 } from '@lucide/vue'
 /** 💡 導入我們手寫的高性能 Canvas 霓虹粒子引擎 */
 import { NeonConfetti } from '../../../shared/lib/confetti'
 
-/** 💡 防禦性 LocalStorage 包裝，提供 100% 強型別且無 any 斷言的安全瀏覽器/Node 相容設計 */
-const storage: Storage =
-    typeof window !== 'undefined'
-        ? window.localStorage
-        : {
-            getItem: () => null,
-            setItem: () => {},
-            removeItem: () => {},
-            clear: () => {},
-            length: 0,
-            key: () => null
-        }
-
 // 💡 引入 Pinia 全局狀態
 const store = useWorkoutStore()
+const timerStore = useRestTimerStore()
 const dialogStore = useDialogStore()
+
 const {
     accessToken,
     isLinked,
@@ -41,19 +35,29 @@ const {
     isMockMode
 } = storeToRefs(store)
 
+const { globalRestDuration } = storeToRefs(timerStore)
+
+// 💡 安全的休息時長格式化，防禦 NaN
+const formattedGlobalRestDuration = computed(() => {
+    const duration = timerStore.globalRestDuration
+    if (isNaN(duration) || duration <= 0) {
+        return { mins: 1, secs: 30, total: 90 }
+    }
+    return {
+        mins: Math.floor(duration / 60),
+        secs: duration % 60,
+        total: duration
+    }
+})
+
+// 💡 控制當前顯示的設定分頁 (menu=主選單, google=雲端備份, timer=休息計時設定)
+const currentView = ref<'menu' | 'google' | 'timer'>('menu')
+
 /** 💡 從 Vite 環境變數動態載入 Google Client ID，避免憑證硬編碼暴露在程式碼中，符合現代 Web 安全防禦工程實踐！ */
 const DEFAULT_CLIENT_ID = ((import.meta as any).env?.VITE_GOOGLE_CLIENT_ID as string) || ''
 
-/** 💡 使用者自訂的真實憑證金鑰 (從 LocalStorage 讀寫，實現 100% 真實綁定！) */
-const customClientId = ref('')
-
-/** 是否已儲存使用者自訂憑證金鑰 */
-const isSavedKey = ref(false)
-
 /** Google Identity Services (GIS) 憑證登入實例 */
 let tokenClient: any = null
-
-
 
 /** Canvas 霓虹發光啞鈴粒子發射器畫布 DOM 節點 */
 const confettiCanvas = ref<HTMLCanvasElement | null>(null)
@@ -89,7 +93,7 @@ const isLocalhost = computed(() => {
 
 /** 💡 判斷當前環境是否能夠直接進行真實 Google Drive OAuth 2.0 綁定 */
 const canUseRealOAuth = computed(() => {
-    return isSavedKey.value || isLocalhost.value
+    return !!DEFAULT_CLIENT_ID
 })
 
 /** 💡 依據連線與憑證狀態，動態決定的綁定按鈕呈現文字 */
@@ -97,19 +101,12 @@ const connectBtnText = computed(() => {
     if (canUseRealOAuth.value) {
         return '連結真實 Google 帳號 🟢'
     }
-    return '開啟模擬沙盒同步 (推薦貼上真實金鑰)'
+    return '開啟模擬沙盒同步'
 })
 
 onMounted(() => {
     // 💡 初始化 Store
     store.initStore()
-
-    /** 💡 檢查是否有自訂的真實 Google Client ID */
-    const savedCustomKey = storage.getItem('forge-fit-custom-client-id')
-    if (savedCustomKey) {
-        customClientId.value = savedCustomKey
-        isSavedKey.value = true
-    }
 
     // 動態加載 Google GIS Client 官方腳本
     loadGoogleGisScript()
@@ -147,9 +144,9 @@ const loadGoogleGisScript = () => {
 const initGoogleOAuth = () => {
     if (typeof window === 'undefined' || !(window as any).google) return
 
-    const activeClientId = customClientId.value || DEFAULT_CLIENT_ID
+    const activeClientId = DEFAULT_CLIENT_ID
 
-    // 💡 如果在非 localhost 的生產/自訂網域，且沒有貼上自訂 Client ID，則直接維持沙盒模式，防止拉起真實 GIS 時 Google 報錯
+    // 💡 如果在非 localhost 的生產/自訂網域，且沒有 Client ID，則直接維持沙盒模式，防止拉起真實 GIS 時 Google 報錯
     if (!canUseRealOAuth.value) {
         tokenClient = null
         isMockMode.value = true
@@ -163,7 +160,7 @@ const initGoogleOAuth = () => {
             callback: async (response: any) => {
                 if (response.error) {
                     console.error('Google OAuth 授權出錯:', response.error)
-                    alert(`Google 帳號連結失敗，請確認您的網路狀況！\n錯誤碼：${response.error}`)
+                    await dialogStore.alert(`Google 帳號連結失敗，請確認您的網路狀況！\n錯誤碼：${response.error}`, '連結失敗', { type: 'danger' })
                     return
                 }
 
@@ -185,7 +182,7 @@ const initGoogleOAuth = () => {
                 store.setGoogleAuth(response.access_token, email)
 
                 triggerCelebrate(50)
-                alert('🟢 恭喜！真實 Google 帳號成功綁定！現已開啟 100% 真實雲端硬碟備份還原功能。')
+                await dialogStore.alert('🟢 恭喜！真實 Google 帳號成功綁定！現已開啟 100% 真實雲端硬碟備份還原功能。', '連結成功', { type: 'success' })
             }
         })
     } catch (e) {
@@ -194,8 +191,6 @@ const initGoogleOAuth = () => {
         isMockMode.value = true
     }
 }
-
-
 
 /**
  * 點擊連結 Google 帳號，自動判斷是走真實 OAuth 授權還是模擬沙盒模式
@@ -221,7 +216,7 @@ const handleConnectGoogle = () => {
 /**
  * 啟動沙盒模擬測試模式，自動配置模擬 Token 與測試信箱，無痛體驗流程
  */
-const startSandboxMode = () => {
+const startSandboxMode = async () => {
     const mockToken = `mock-token-${Date.now()}`
     
     // 💡 使用 store.setGoogleAuth 統一管理
@@ -230,13 +225,17 @@ const startSandboxMode = () => {
 
     triggerCelebrate(60)
 
-    if (!isLocalhost.value && !isSavedKey.value) {
-        alert(
-            '💡 提示：由於您目前在外部網域上運行，且尚未設定「Google 開發者金鑰」，系統已自動為您配置「模擬沙盒測試 Token」。\n\n若需真正備份至 Google Drive，請在下方設定面板中，依 3 步驟教學建立並儲存您專屬的 Client ID 金鑰！'
+    if (!isLocalhost.value) {
+        await dialogStore.alert(
+            '💡 提示：由於您目前在外部網域上運行，系統已自動為您配置「模擬沙盒測試 Token」以確保流暢體驗。',
+            '模擬沙盒模式',
+            { type: 'warning' }
         )
     } else {
-        alert(
-            '💡 已進入沙盒測試模式！系統已自動為您配置虛擬模擬 Token。\n（若需連結真實雲端，請確保在 http://localhost:5173 上運行本機端）'
+        await dialogStore.alert(
+            '💡 已進入沙盒測試模式！系統已自動為您配置虛擬模擬 Token。\n（若需連結真實雲端，請確保在 http://localhost:5173 上運行本機端）',
+            '模擬沙盒模式',
+            { type: 'info' }
         )
     }
 }
@@ -335,139 +334,280 @@ const handleDownloadRestore = async () => {
 <template>
     <div class="settings-page-wrapper" style="animation: fadeInUp 0.4s ease forwards">
 
-        <!-- 💡 區塊一：Google Drive 雲端備份控制面板 -->
-        <div class="settings-section">
-            <div class="section-title">
-                <Cloud :size="18" class="text-cyan" />
-                <h3>Google Drive 雲端硬碟備份</h3>
+        <!-- ==================================================== -->
+        <!-- 💡 設定主選單 (Menu View) -->
+        <!-- ==================================================== -->
+        <div v-if="currentView === 'menu'" class="settings-menu-list" style="animation: fadeIn 0.3s ease">
+            <!-- 選項一：Google Drive 備份 -->
+            <div @click="currentView = 'google'" class="settings-menu-item glass-card">
+                <div class="menu-icon-box bg-cyan-soft">
+                    <Cloud :size="20" class="text-cyan glow-cyan" />
+                </div>
+                <div class="menu-text-box">
+                    <h4>Google Drive 雲端備份</h4>
+                    <p>備份與還原重訓日誌，防當機與資料遺失</p>
+                </div>
+                <ChevronRight :size="18" class="menu-chevron" />
             </div>
 
-            <!-- 場景 A：尚未綁定 -->
-            <div v-if="!isLinked" class="connect-dashed-box" style="animation: fadeIn 0.3s ease">
-                <CloudLightning :size="32" class="text-muted" style="margin-bottom: 0.75rem" />
-                <p class="connect-desc">
-                    尚未連結您的 Google 帳號，重訓紀錄目前僅暫存於本機瀏覽器中。
-                </p>
-                <p class="connect-sub-desc">
-                    綁定後，資料將加密同步至您專屬的隱私雲端區，手汗手機當機亦無懼！
-                </p>
-
-                <button @click="handleConnectGoogle" class="btn btn-primary connect-google-btn">
-                    <svg class="google-svg" viewBox="0 0 24 24" width="18" height="18">
-                        <path
-                            fill="#4285F4"
-                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                        />
-                        <path
-                            fill="#34A853"
-                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                        />
-                        <path
-                            fill="#FBBC05"
-                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"
-                        />
-                        <path
-                            fill="#EA4335"
-                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"
-                        />
-                    </svg>
-                    <span>{{ connectBtnText }}</span>
-                </button>
+            <!-- 選項二：組間休息設定 -->
+            <div @click="currentView = 'timer'" class="settings-menu-item glass-card">
+                <div class="menu-icon-box bg-orange-soft">
+                    <Timer :size="20" class="text-orange glow-orange" />
+                </div>
+                <div class="menu-text-box">
+                    <h4>組間休息計時器</h4>
+                    <p>設定勾選完成組數時，自動觸發的倒數時長</p>
+                </div>
+                <ChevronRight :size="18" class="menu-chevron" />
             </div>
+        </div>
 
-            <!-- 場景 B：已成功綁定 -->
-            <div
-                v-else
-                class="linked-dashboard-box"
-                :class="{ 'mock-dashboard-border': isMockMode }"
-                style="animation: fadeIn 0.3s ease"
-            >
-                <div class="user-status-row">
-                    <div class="status-indicator">
-                        <UserCheck
-                            v-if="!isMockMode"
-                            class="text-green"
-                            :size="20"
-                            style="filter: drop-shadow(0 0 4px var(--color-success))"
-                        />
-                        <AlertTriangle
-                            v-else
-                            class="text-warning"
-                            :size="20"
-                            style="filter: drop-shadow(0 0 4px #fbbc05)"
-                        />
-                        <div>
-                            <div class="email-text" :title="userEmail">{{ userEmail }}</div>
-                            <div
-                                class="status-badge-green"
-                                :class="{ 'status-badge-mock': isMockMode }"
-                            >
-                                雲端帳號已綁定
-                                <span v-if="isMockMode" class="mock-tag"
-                                    >(沙盒模擬模式 - 資料暫存本地)</span
+        <!-- ==================================================== -->
+        <!-- 💡 詳細頁：Google Drive 雲端備份控制面板 -->
+        <!-- ==================================================== -->
+        <div v-else-if="currentView === 'google'" class="settings-detail-view" style="animation: slideInRight 0.3s ease forwards">
+            <!-- 返回主選單按鈕 -->
+            <button @click="currentView = 'menu'" class="btn-settings-back">
+                <ChevronLeft :size="16" />
+                <span>返回設定選單</span>
+            </button>
+
+            <div class="settings-section">
+                <div class="section-title">
+                    <Cloud :size="18" class="text-cyan" />
+                    <h3>Google Drive 雲端硬碟備份</h3>
+                </div>
+
+                <!-- 場景 A：尚未綁定 -->
+                <div v-if="!isLinked" class="connect-dashed-box" style="animation: fadeIn 0.3s ease">
+                    <CloudLightning :size="32" class="text-muted" style="margin-bottom: 0.75rem" />
+                    <p class="connect-desc">
+                        尚未連結您的 Google 帳號，重訓紀錄目前僅暫存於本機瀏覽器中。
+                    </p>
+                    <p class="connect-sub-desc">
+                        綁定後，資料將加密同步至您專屬的隱私雲端區，手汗手機當機亦無懼！
+                    </p>
+
+                    <button @click="handleConnectGoogle" class="btn btn-primary connect-google-btn">
+                        <svg class="google-svg" viewBox="0 0 24 24" width="18" height="18">
+                            <path
+                                fill="#4285F4"
+                                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                            />
+                            <path
+                                fill="#34A853"
+                                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                            />
+                            <path
+                                fill="#FBBC05"
+                                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z"
+                            />
+                            <path
+                                fill="#EA4335"
+                                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z"
+                            />
+                        </svg>
+                        <span>{{ connectBtnText }}</span>
+                    </button>
+                </div>
+
+                <!-- 場景 B：已成功綁定 -->
+                <div
+                    v-else
+                    class="linked-dashboard-box"
+                    :class="{ 'mock-dashboard-border': isMockMode }"
+                    style="animation: fadeIn 0.3s ease"
+                >
+                    <div class="user-status-row">
+                        <div class="status-indicator">
+                            <UserCheck
+                                v-if="!isMockMode"
+                                class="text-green"
+                                :size="20"
+                                style="filter: drop-shadow(0 0 4px var(--color-success))"
+                            />
+                            <AlertTriangle
+                                v-else
+                                class="text-warning"
+                                :size="20"
+                                style="filter: drop-shadow(0 0 4px #fbbc05)"
+                            />
+                            <div>
+                                <div class="email-text" :title="userEmail">{{ userEmail }}</div>
+                                <div
+                                    class="status-badge-green"
+                                    :class="{ 'status-badge-mock': isMockMode }"
                                 >
-                                <span v-else class="mock-tag"
-                                    >(真實 OAuth 2.0 模式 - 100% 雲端備份)</span
-                                >
+                                    雲端帳號已綁定
+                                    <span v-if="isMockMode" class="mock-tag"
+                                        >(沙盒模擬模式 - 資料暫存本地)</span
+                                    >
+                                    <span v-else class="mock-tag"
+                                        >(真實 OAuth 2.0 模式 - 100% 雲端備份)</span
+                                    >
+                                </div>
                             </div>
                         </div>
+                        <!-- 登出按鈕 -->
+                        <button @click="handleDisconnect" class="btn-disconnect" title="解除綁定帳號">
+                            <LogOut :size="16" />
+                            <span>解除綁定</span>
+                        </button>
                     </div>
-                    <!-- 登出按鈕 -->
-                    <button @click="handleDisconnect" class="btn-disconnect" title="解除綁定帳號">
-                        <LogOut :size="16" />
-                        <span>解除綁定</span>
-                    </button>
-                </div>
 
-                <!-- 備份與同步控制排 -->
-                <div class="sync-actions-row">
-                    <!-- 上傳備份 -->
-                    <button
-                        @click="handleUploadSync"
-                        class="btn btn-secondary sync-btn"
-                        :disabled="isSyncing || isRestoring"
-                    >
-                        <RefreshCw :size="16" :class="{ 'rotating-sync': isSyncing }" />
-                        <span>{{ isSyncing ? '同步備份中...' : '立即上傳備份' }}</span>
-                    </button>
+                    <!-- 備份與同步控制排 -->
+                    <div class="sync-actions-row">
+                        <!-- 上傳備份 -->
+                        <button
+                            @click="handleUploadSync"
+                            class="btn btn-secondary sync-btn"
+                            :disabled="isSyncing || isRestoring"
+                        >
+                            <RefreshCw :size="16" :class="{ 'rotating-sync': isSyncing }" />
+                            <span>{{ isSyncing ? '同步備份中...' : '立即上傳備份' }}</span>
+                        </button>
 
-                    <!-- 下載還原 -->
-                    <button
-                        @click="handleDownloadRestore"
-                        class="btn btn-outline-warn restore-btn"
-                        :disabled="isSyncing || isRestoring"
-                    >
-                        <RefreshCw :size="16" :class="{ 'rotating-sync': isRestoring }" />
-                        <span>{{ isRestoring ? '雲端下載中...' : '從雲端下載還原' }}</span>
-                    </button>
-                </div>
-
-                <!-- 同步時間戳記與提示 -->
-                <div class="sync-footer">
-                    <div class="sync-time">
-                        上次同步時間：<strong>{{ lastSyncedTime }}</strong>
+                        <!-- 下載還原 -->
+                        <button
+                            @click="handleDownloadRestore"
+                            class="btn btn-outline-warn restore-btn"
+                            :disabled="isSyncing || isRestoring"
+                        >
+                            <RefreshCw :size="16" :class="{ 'rotating-sync': isRestoring }" />
+                            <span>{{ isRestoring ? '雲端下載中...' : '從雲端下載還原' }}</span>
+                        </button>
                     </div>
-                    <div class="sync-security-hint">
-                        <ShieldCheck
-                            :size="14"
-                            :class="isMockMode ? 'text-warning' : 'text-green'"
-                        />
-                        <span v-if="isMockMode"
-                            >本地模擬：備份將存於本地快取，在 localhost
-                            網域下將自動解鎖真實雲端同步。</span
-                        >
-                        <span v-else
-                            >隱私保護：備份會加密存儲至您的 Google Drive
-                            隱藏應用數據區 (AppData)，可防誤刪且完全保護隱私。</span
-                        >
+
+                    <!-- 同步時間戳記與提示 -->
+                    <div class="sync-footer">
+                        <div class="sync-time">
+                            上次同步時間：<strong>{{ lastSyncedTime }}</strong>
+                        </div>
+                        <div class="sync-security-hint">
+                            <ShieldCheck
+                                :size="14"
+                                :class="isMockMode ? 'text-warning' : 'text-green'"
+                            />
+                            <span v-if="isMockMode"
+                                >本地模擬：備份將存於本地快取，在 localhost
+                                網域下將自動解鎖真實雲端同步。</span
+                            >
+                            <span v-else
+                                >隱私保護：備份會加密存儲至您的 Google Drive
+                                隱藏應用數據區 (AppData)，可防誤刪且完全保護隱私。</span
+                            >
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
+        <!-- ==================================================== -->
+        <!-- 💡 詳細頁：組間休息設定面版 -->
+        <!-- ==================================================== -->
+        <div v-else-if="currentView === 'timer'" class="settings-detail-view" style="animation: slideInRight 0.3s ease forwards">
+            <!-- 返回主選單按鈕 -->
+            <button @click="currentView = 'menu'" class="btn-settings-back">
+                <ChevronLeft :size="16" />
+                <span>返回設定選單</span>
+            </button>
 
+            <div class="settings-section">
+                <div class="section-title">
+                    <Timer :size="18" class="text-orange" />
+                    <h3>組間休息計時器設定</h3>
+                </div>
 
+                <div class="rest-settings-console">
+                    <p class="settings-intro">
+                        設定當您在訓練日誌頁面中將某組勾選「完成」時，系統自動啟動的倒數休息秒數。
+                    </p>
 
+                    <!-- 當前數值霓虹看板 -->
+                    <div class="settings-value-display">
+                        <span class="value-number">{{ formattedGlobalRestDuration.total }}</span>
+                        <span class="value-unit">秒</span>
+                        <span class="value-formatted">
+                            ({{ formattedGlobalRestDuration.mins }} 分 {{ formattedGlobalRestDuration.secs }} 秒)
+                        </span>
+                    </div>
+
+                    <!-- 微調與滑桿控制 -->
+                    <div class="settings-adjust-row">
+                        <button 
+                            @click="timerStore.setGlobalRestDuration(Math.max(10, formattedGlobalRestDuration.total - 15))"
+                            class="btn-adjust-value"
+                            :disabled="formattedGlobalRestDuration.total <= 10"
+                        >
+                            <Minus :size="14" />
+                            <span>-15s</span>
+                        </button>
+                        
+                        <input 
+                            type="range" 
+                            min="10" 
+                            max="600" 
+                            step="5" 
+                            :value="formattedGlobalRestDuration.total"
+                            @input="(e) => timerStore.setGlobalRestDuration(Number((e.target as HTMLInputElement).value))"
+                            class="duration-range-slider"
+                        />
+
+                        <button 
+                            @click="timerStore.setGlobalRestDuration(Math.min(600, formattedGlobalRestDuration.total + 15))"
+                            class="btn-adjust-value"
+                            :disabled="formattedGlobalRestDuration.total >= 600"
+                        >
+                            <Plus :size="14" />
+                            <span>+15s</span>
+                        </button>
+                    </div>
+
+                    <!-- 一鍵快速選取 -->
+                    <div class="quick-select-duration">
+                        <div class="quick-select-label">快速選擇常用時間：</div>
+                        <div class="quick-select-grid">
+                            <button 
+                                @click="timerStore.setGlobalRestDuration(60)" 
+                                class="btn-quick-duration"
+                                :class="{ active: globalRestDuration === 60 }"
+                            >
+                                60 秒 (1分)
+                            </button>
+                            <button 
+                                @click="timerStore.setGlobalRestDuration(90)" 
+                                class="btn-quick-duration"
+                                :class="{ active: globalRestDuration === 90 }"
+                            >
+                                90 秒 (1.5分)
+                            </button>
+                            <button 
+                                @click="timerStore.setGlobalRestDuration(120)" 
+                                class="btn-quick-duration"
+                                :class="{ active: globalRestDuration === 120 }"
+                            >
+                                120 秒 (2分)
+                            </button>
+                            <button 
+                                @click="timerStore.setGlobalRestDuration(180)" 
+                                class="btn-quick-duration"
+                                :class="{ active: globalRestDuration === 180 }"
+                            >
+                                180 秒 (3分)
+                            </button>
+                            <button 
+                                @click="timerStore.setGlobalRestDuration(300)" 
+                                class="btn-quick-duration"
+                                :class="{ active: globalRestDuration === 300 }"
+                            >
+                                300 秒 (5分)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- 💡 霓虹發光粒子雨畫布 -->
         <canvas v-if="isCanvasActive" ref="confettiCanvas" class="settings-confetti-canvas"></canvas>
@@ -482,6 +622,284 @@ const handleDownloadRestore = async () => {
     display: flex;
     flex-direction: column;
     gap: 1.25rem;
+}
+
+/* ⚙️ 設定主選單樣式 */
+.settings-menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.settings-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.1rem 1.25rem;
+    background: rgba(18, 22, 36, 0.45);
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.settings-menu-item:hover {
+    border-color: rgba(0, 240, 255, 0.22);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 240, 255, 0.08), inset 0 0 10px rgba(0, 240, 255, 0.03);
+}
+
+.menu-icon-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    flex-shrink: 0;
+}
+
+.bg-cyan-soft {
+    background: rgba(0, 240, 255, 0.08);
+    border: 1px solid rgba(0, 240, 255, 0.15);
+}
+
+.bg-orange-soft {
+    background: rgba(255, 122, 0, 0.08);
+    border: 1px solid rgba(255, 122, 0, 0.15);
+}
+
+.menu-text-box {
+    flex: 1;
+    text-align: left;
+    min-width: 0;
+}
+
+.menu-text-box h4 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0 0 0.25rem 0;
+}
+
+.menu-text-box p {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.menu-chevron {
+    color: var(--text-muted);
+    transition: all 0.2s ease;
+}
+
+.settings-menu-item:hover .menu-chevron {
+    color: var(--color-cyan);
+    transform: translateX(3px);
+}
+
+/* ⬅️ 返回選單按鈕 */
+.btn-settings-back {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: transparent;
+    border: none;
+    color: var(--color-cyan);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    align-self: flex-start;
+    border: 1px solid rgba(0, 240, 255, 0.1);
+    background: rgba(0, 240, 255, 0.02);
+}
+
+.btn-settings-back:hover {
+    background: rgba(0, 240, 255, 0.08);
+    border-color: rgba(0, 240, 255, 0.25);
+    box-shadow: 0 0 8px rgba(0, 240, 255, 0.15);
+}
+
+/* ⏳ 休息時間設定介面 */
+.rest-settings-console {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.5rem 0;
+}
+
+.settings-intro {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 1.75rem;
+    line-height: 1.5;
+}
+
+.settings-value-display {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.2rem;
+    margin-bottom: 1.75rem;
+}
+
+.value-number {
+    font-size: 3rem;
+    font-weight: 800;
+    color: #ff7a00;
+    text-shadow: 0 0 15px rgba(255, 122, 0, 0.45);
+    font-family: monospace;
+    line-height: 1;
+}
+
+.value-unit {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #ff7a00;
+    margin-left: 2px;
+}
+
+.value-formatted {
+    font-size: 0.8rem;
+    color: var(--text-sub);
+    margin-left: 0.6rem;
+}
+
+.settings-adjust-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 0.85rem;
+    margin-bottom: 2rem;
+}
+
+.btn-adjust-value {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 38px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    color: var(--text-main);
+    font-size: 0.72rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-adjust-value:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 122, 0, 0.35);
+    color: #ff7a00;
+}
+
+.btn-adjust-value:disabled {
+    opacity: 0.25;
+    cursor: not-allowed;
+}
+
+.duration-range-slider {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    outline: none;
+}
+
+.duration-range-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #ff7a00;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(255, 122, 0, 0.8);
+    transition: transform 0.1s;
+}
+
+.duration-range-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+}
+
+.quick-select-duration {
+    width: 100%;
+    border-top: 1px solid rgba(255, 255, 255, 0.03);
+    padding-top: 1.25rem;
+}
+
+.quick-select-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-sub);
+    margin-bottom: 0.85rem;
+    text-align: left;
+}
+
+.quick-select-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.btn-quick-duration {
+    flex: 1;
+    min-width: 90px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 8px;
+    color: var(--text-main);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.65rem 0;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-quick-duration:hover {
+    background: rgba(255, 122, 0, 0.05);
+    border-color: rgba(255, 122, 0, 0.2);
+    color: #ff7a00;
+}
+
+.btn-quick-duration.active {
+    background: rgba(255, 122, 0, 0.12) !important;
+    border-color: #ff7a00 !important;
+    color: #ff7a00 !important;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(255, 122, 0, 0.15);
+}
+
+.text-orange {
+    color: #ff7a00 !important;
+}
+
+.glow-orange {
+    filter: drop-shadow(0 0 4px rgba(255, 122, 0, 0.4));
+}
+
+/* Slide in sub-view animation */
+@keyframes slideInRight {
+    from {
+        transform: translateX(12px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
 }
 
 .settings-section {
@@ -702,122 +1120,7 @@ const handleDownloadRestore = async () => {
     line-height: 1.4;
 }
 
-/* 🔑 Google 開發者金鑰設定面板樣式 */
-.credential-setup-box {
-    background: rgba(255, 255, 255, 0.01);
-    border: 1px dashed rgba(255, 255, 255, 0.08);
-    border-radius: 12px;
-    padding: 1.25rem;
-}
 
-.credential-desc {
-    font-size: 0.8rem;
-    color: var(--text-sub);
-    line-height: 1.5;
-}
-
-.client-id-input-group {
-    display: flex;
-    gap: 0.5rem;
-}
-
-.client-id-text-input {
-    flex: 1;
-    background: rgba(8, 10, 16, 0.7);
-    border: 1px solid var(--border-soft);
-    border-radius: 8px;
-    padding: 0.6rem 0.75rem;
-    color: #fff;
-    font-size: 0.82rem;
-    outline: none;
-    transition: all 0.2s ease;
-    min-width: 0;
-}
-
-.client-id-text-input:focus:not(:disabled) {
-    border-color: rgba(0, 240, 255, 0.4);
-    box-shadow: 0 0 8px rgba(0, 240, 255, 0.15);
-}
-
-.client-id-text-input:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    background: rgba(255, 255, 255, 0.02);
-    border-color: transparent;
-    color: var(--text-muted);
-}
-
-.save-key-btn,
-.clear-key-btn {
-    font-size: 0.8rem;
-    font-weight: 700;
-    padding: 0 1.2rem;
-    border-radius: 8px;
-    height: 38px;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.2s ease;
-}
-
-.key-status-indicator {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.72rem;
-    line-height: 1.4;
-}
-
-/* OAuth 教學選單 */
-.oauth-guide-details {
-    border-top: 1px solid rgba(255, 255, 255, 0.03);
-    padding-top: 1rem;
-}
-
-.oauth-guide-summary {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: var(--color-cyan);
-    cursor: pointer;
-    user-select: none;
-    transition: color 0.2s ease;
-}
-
-.oauth-guide-summary:hover {
-    color: #fff;
-    filter: drop-shadow(0 0 4px rgba(0, 240, 255, 0.3));
-}
-
-.oauth-guide-content {
-    margin-top: 0.75rem;
-    padding: 0.75rem;
-    background: rgba(8, 10, 16, 0.5);
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.03);
-    font-size: 0.75rem;
-    color: var(--text-sub);
-    line-height: 1.6;
-}
-
-.oauth-guide-content ol {
-    padding-left: 1.25rem;
-}
-
-.oauth-guide-content li {
-    margin-bottom: 0.5rem;
-}
-
-.oauth-guide-content li:last-child {
-    margin-bottom: 0;
-}
-
-.oauth-guide-content ul {
-    padding-left: 1.25rem;
-    margin-top: 0.25rem;
-    list-style-type: circle;
-}
 
 
 
