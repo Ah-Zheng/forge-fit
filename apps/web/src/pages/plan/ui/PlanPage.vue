@@ -185,20 +185,16 @@ const isNextSuggestSet = (ex: any, sIdx: number) => {
                     <div class="quick-title">手動快速啟動</div>
                     <div class="quick-btn-grid">
                         <button @click="handleQuickStartRest(60)" class="quick-start-btn">
-                            <Play :size="14" />
-                            <span>1 分鐘</span>
+                            <span>1 分</span>
                         </button>
                         <button @click="handleQuickStartRest(90)" class="quick-start-btn">
-                            <Play :size="14" />
-                            <span>1.5 分鐘</span>
+                            <span>1.5 分</span>
                         </button>
                         <button @click="handleQuickStartRest(120)" class="quick-start-btn">
-                            <Play :size="14" />
-                            <span>2 分鐘</span>
+                            <span>2 分</span>
                         </button>
                         <button @click="handleQuickStartRest(180)" class="quick-start-btn">
-                            <Play :size="14" />
-                            <span>3 分鐘</span>
+                            <span>3 分</span>
                         </button>
                     </div>
                 </div>
@@ -346,13 +342,13 @@ const isNextSuggestSet = (ex: any, sIdx: number) => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 0.5rem 0 1rem;
+    padding: 0.25rem 0 0.75rem;
 }
 
 .timer-target-name {
-    font-size: 0.85rem;
+    font-size: 0.82rem;
     color: var(--text-sub);
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
     text-align: center;
 }
 
@@ -366,9 +362,9 @@ const isNextSuggestSet = (ex: any, sIdx: number) => {
 /* SVG 圓環計時器 */
 .circular-timer-wrapper {
     position: relative;
-    width: 200px;
-    height: 200px;
-    margin-bottom: 1.5rem;
+    width: 140px;
+    height: 140px;
+    margin-bottom: 1rem;
 }
 
 .circular-timer-svg {
@@ -409,19 +405,19 @@ const isNextSuggestSet = (ex: any, sIdx: number) => {
 }
 
 .timer-text-overlay .digits {
-    font-size: 2.5rem;
+    font-size: 1.85rem;
     font-weight: 800;
     font-family: monospace;
     color: #fff;
-    letter-spacing: -1px;
+    letter-spacing: -0.5px;
     text-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
 }
 
 .paused-hint {
-    font-size: 0.68rem;
+    font-size: 0.6rem;
     font-weight: 800;
     color: #ff7a00;
-    letter-spacing: 2px;
+    letter-spacing: 1px;
     margin-top: -2px;
 }
 
@@ -429,8 +425,8 @@ const isNextSuggestSet = (ex: any, sIdx: number) => {
 .timer-control-buttons {
     display: flex;
     align-items: center;
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
+    gap: 1rem;
+    margin-bottom: 1rem;
 }
 
 .btn-icon-circle {
@@ -445,8 +441,8 @@ const isNextSuggestSet = (ex: any, sIdx: number) => {
 }
 
 .btn-adjust {
-    width: 44px;
-    height: 44px;
+    width: 36px;
+    height: 36px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     color: var(--text-main);
@@ -458,14 +454,14 @@ const isNextSuggestSet = (ex: any, sIdx: number) => {
 }
 
 .btn-adjust span {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     font-weight: 700;
     margin-top: -1px;
 }
 
 .btn-main-control {
-    width: 60px;
-    height: 60px;
+    width: 48px;
+    height: 48px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
@@ -498,8 +494,8 @@ const isNextSuggestSet = (ex: any, sIdx: number) => {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
-    height: 42px;
-    font-size: 0.85rem;
+    height: 38px;
+    font-size: 0.8rem;
     font-weight: 700;
     cursor: pointer;
     border-radius: 8px;
@@ -509,47 +505,46 @@ const isNextSuggestSet = (ex: any, sIdx: number) => {
 /* 計時器閒置中 UI */
 .timer-idle-view {
     text-align: center;
-    padding: 1.5rem 0 1rem;
+    padding: 0.75rem 0 0.5rem;
 }
 
 .idle-tip {
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
-    margin-bottom: 1.75rem;
-    line-height: 1.5;
+    margin-bottom: 1rem;
+    line-height: 1.4;
 }
 
 .quick-start-section {
     border-top: 1px solid rgba(255, 255, 255, 0.03);
-    padding-top: 1.25rem;
+    padding-top: 1rem;
 }
 
 .quick-title {
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 700;
     color: var(--text-sub);
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.6rem;
     text-align: left;
 }
 
 .quick-btn-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.6rem;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
 }
 
 .quick-start-btn {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 8px;
     color: var(--text-main);
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 600;
-    padding: 0.65rem 0;
+    padding: 0.5rem 0;
     cursor: pointer;
     transition: all 0.2s ease;
 }

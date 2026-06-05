@@ -9,6 +9,7 @@
         "lint": "turbo run lint"
     },
     "devDependencies": {
+        "@stylistic/eslint-plugin": "^5.10.0",
         "eslint": "^9.18.0",
         "eslint-plugin-vue": "^10.9.1",
         "turbo": "^1.13.0",

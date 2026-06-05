@@ -1,11 +1,19 @@
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import pluginVue from 'eslint-plugin-vue'
+import stylistic from '@stylistic/eslint-plugin'
 
 export default [
     js.configs.recommended,
     ...tseslint.configs.recommended,
     ...pluginVue.configs['flat/recommended'],
+    stylistic.configs.customize({
+        indent: 4,
+        quotes: 'single',
+        semi: false,
+        jsx: true,
+        commaDangle: 'never'
+    }),
     {
         files: ['*.vue', '**/*.vue'],
         languageOptions: {
