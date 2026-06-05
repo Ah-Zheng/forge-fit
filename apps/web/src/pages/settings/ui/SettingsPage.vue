@@ -93,7 +93,7 @@ const isLocalhost = computed(() => {
 
 /** 💡 判斷當前環境是否能夠直接進行真實 Google Drive OAuth 2.0 綁定 */
 const canUseRealOAuth = computed(() => {
-    return !!DEFAULT_CLIENT_ID
+    return !!DEFAULT_CLIENT_ID || isLocalhost.value
 })
 
 /** 💡 依據連線與憑證狀態，動態決定的綁定按鈕呈現文字 */
